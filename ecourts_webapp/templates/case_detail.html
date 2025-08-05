@@ -1,0 +1,318 @@
+{% extends "base.html" %} {% block title %}Case Details - {{ case.case_no }}{% endblock %} {% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Header -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-1">Case Details: {{ case.case_no or 'N/A' }}</h4>
+                        <p class="text-muted mb-0">CINO: {{ case.cino }}</p>
+                    </div>
+                    <div>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary me-2">
+                            <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                        </a>
+                        <button class="btn btn-success" onclick="saveCurrentCase()">
+                            <i class="fas fa-save me-1"></i>Save Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Case Information Form -->
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-edit me-2"></i>Edit Case Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="caseForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Case Number</label>
+                                    <input type="text" class="form-control" name="case_no" value="{{ case.case_no or '' }}">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Case Type</label>
+                                    <input type="text" class="form-control" name="type_name" value="{{ case.type_name or '' }}">
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Petitioner Name</label>
+                                    <textarea class="form-control" name="petparty_name" rows="2">{{ case.petparty_name or '' }}</textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Respondent Name</label>
+                                    <textarea class="form-control" name="resparty_name" rows="2">{{ case.resparty_name or '' }}</textarea>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Establishment Name</label>
+                                <input type="text" class="form-control" name="establishment_name" value="{{ case.establishment_name or '' }}">
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">State</label>
+                                    <input type="text" class="form-control" name="state_name" value="{{ case.state_name or '' }}">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">District</label>
+                                    <input type="text" class="form-control" name="district_name" value="{{ case.district_name or '' }}">
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Next Hearing Date</label>
+                                    <input type="date" class="form-control" name="date_next_list" value="{{ case.date_next_list or '' }}">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Last Hearing Date</label>
+                                    <input type="date" class="form-control" name="date_last_list" value="{{ case.date_last_list or '' }}">
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Purpose</label>
+                                    <input type="text" class="form-control" name="purpose_name" value="{{ case.purpose_name or '' }}">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Disposition</label>
+                                    <input type="text" class="form-control" name="disp_name" value="{{ case.disp_name or '' }}">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Court/Judge Details</label>
+                                <textarea class="form-control" name="court_no_desg_name" rows="2">{{ case.court_no_desg_name or '' }}</textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Your Notes</label>
+                                <textarea class="form-control" name="user_notes" rows="4" placeholder="Add your personal notes about this case...">{{ case.user_notes or '' }}</textarea>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Case Status & History -->
+            <div class="col-lg-4">
+                <!-- Status Card -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Case Status</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <small class="text-muted">Status</small>
+                            <div class="fw-bold">
+                                {% if case.is_changed %}
+                                <span class="badge bg-warning">Changed</span> {% else %}
+                                <span class="badge bg-success">Up to Date</span> {% endif %}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted">Last Updated</small>
+                            <div>{{ case.updated_at or 'Never' }}</div>
+                        </div>
+                        {% if case.is_changed and case.change_summary %}
+                        <div class="mb-3">
+                            <small class="text-muted">Recent Changes</small>
+                            <div class="small">
+                                {% set changes = case.change_summary.replace('[', '').replace(']', '').replace('"', '').split(',') %} {% for change in changes %}
+                                <div class="text-warning">• {{ change.strip() }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="mb-0"><i class="fas fa-lightning-bolt me-2"></i>Quick Actions</h6>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-success btn-sm w-100 mb-2" onclick="saveCurrentCase()">
+                            <i class="fas fa-save me-1"></i>Save Changes
+                        </button> {% if case.is_changed %}
+                        <button class="btn btn-outline-secondary btn-sm w-100 mb-2" onclick="markAsReviewed()">
+                            <i class="fas fa-check me-1"></i>Mark as Reviewed
+                        </button> {% endif %}
+                        <button class="btn btn-outline-primary btn-sm w-100" onclick="previewCalendarEntry()">
+                            <i class="fas fa-calendar me-1"></i>Preview Calendar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Calendar Preview Modal -->
+<div class="modal fade" id="calendarPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Calendar Entry Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="calendarPreviewBody">
+                <!-- Preview content will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+    const caseData = {
+        cino: '{{ case.cino }}',
+        case_no: '{{ case.case_no or "" }}',
+        petparty_name: '{{ case.petparty_name or "" }}',
+        resparty_name: '{{ case.resparty_name or "" }}'
+    };
+
+    function saveCurrentCase() {
+        const formData = new FormData(document.getElementById('caseForm'));
+        const updates = {};
+        const notes = formData.get('user_notes');
+
+        // Collect all form fields for updates
+        for (let [key, value] of formData.entries()) {
+            if (key !== 'user_notes') {
+                updates[key] = value;
+            }
+        }
+
+        showLoading();
+
+        fetch(`/case/${caseData.cino}/update`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    notes: notes,
+                    updates: updates
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+                if (data.error) {
+                    showAlert(data.error, 'danger');
+                } else {
+                    showAlert(data.message, 'success');
+                    // Update the status badge
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                }
+            })
+            .catch(error => {
+                hideLoading();
+                showAlert('Save failed: ' + error.message, 'danger');
+            });
+    }
+
+    function markAsReviewed() {
+        showLoading();
+
+        fetch(`/case/${caseData.cino}/mark_reviewed`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+                showAlert(data.message, 'success');
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            })
+            .catch(error => {
+                hideLoading();
+                showAlert('Failed to mark as reviewed: ' + error.message, 'danger');
+            });
+    }
+
+    function previewCalendarEntry() {
+        const formData = new FormData(document.getElementById('caseForm'));
+        const petitioner = formData.get('petparty_name') || caseData.petparty_name;
+        const respondent = formData.get('resparty_name') || caseData.resparty_name;
+        const nextDate = formData.get('date_next_list');
+        const notes = formData.get('user_notes');
+        const purpose = formData.get('purpose_name');
+        const establishment = formData.get('establishment_name');
+
+        const previewContent = `
+        <div class="calendar-preview">
+            <h6><strong>Event Title:</strong></h6>
+            <p class="bg-light p-2 rounded">${petitioner} vs ${respondent}</p>
+            
+            <h6><strong>Date:</strong></h6>
+            <p class="bg-light p-2 rounded">${nextDate || 'Not set'}</p>
+            
+            <h6><strong>Description:</strong></h6>
+            <div class="bg-light p-2 rounded small">
+                <strong>Case No:</strong> ${formData.get('case_no')}<br>
+                <strong>Purpose:</strong> ${purpose}<br>
+                <strong>Court:</strong> ${establishment}<br>
+                <strong>Your Notes:</strong> ${notes || 'No notes added'}
+            </div>
+        </div>
+    `;
+
+        document.getElementById('calendarPreviewBody').innerHTML = previewContent;
+        const modal = new bootstrap.Modal(document.getElementById('calendarPreviewModal'));
+        modal.show();
+    }
+
+    // Utility functions
+    function showLoading() {
+        const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+        modal.show();
+    }
+
+    function hideLoading() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('loadingModal'));
+        if (modal) modal.hide();
+    }
+
+    function showAlert(message, type = 'info') {
+        // Remove existing alerts
+        document.querySelectorAll('.alert.position-fixed').forEach(alert => alert.remove());
+
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+        document.body.appendChild(alertDiv);
+
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
+</script>
+{% endblock %}

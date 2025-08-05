@@ -1,0 +1,14 @@
+# Core Flask dependencies
+flask==3.1.1
+pandas==2.3.1
+openpyxl==3.1.2
+
+# Google Calendar API dependencies
+google-api-python-client==2.137.0
+google-auth==2.32.0
+google-auth-oauthlib==1.2.1
+google-auth-httplib2==0.2.0
+
+# Optional: For better development experience
+python-dotenv==1.0.0
+flask-cors==4.0.0

@@ -1,0 +1,99 @@
+{% extends "base.html" %} {% block title %}Reviewed Cases - Ready for Calendar{% endblock %} {% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-1">Reviewed Cases Ready for Calendar</h4>
+                        <p class="text-muted mb-0">Cases that have been reviewed and have notes added</p>
+                    </div>
+                    <div>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary me-2">
+                            <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                        </a>
+                        <button class="btn btn-success" onclick="createCalendarForReviewed()">
+                            <i class="fas fa-calendar-plus me-1"></i>Create Calendar Events
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            {% if cases %} {% for case in cases %}
+            <div class="col-xl-4 col-lg-6 mb-4">
+                <div class="card border-success">
+                    <div class="card-header bg-success bg-opacity-10 text-success">
+                        <small class="fw-bold">
+                                <i class="fas fa-check-circle me-1"></i>REVIEWED & READY
+                            </small>
+                    </div>
+                    <div class="card-body">
+                        <h6 class="card-title">{{ case.case_no or 'N/A' }}</h6>
+
+                        <div class="case-parties mb-3">
+                            <div class="row small">
+                                <div class="col-6">
+                                    <strong>Petitioner:</strong><br> {{ case.petparty_name or 'N/A' }}
+                                </div>
+                                <div class="col-6">
+                                    <strong>Respondent:</strong><br> {{ case.resparty_name or 'N/A' }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="row small">
+                                <div class="col-12 mb-2">
+                                    <i class="fas fa-calendar-alt text-success me-1"></i>
+                                    <strong>Next Date:</strong> {{ case.date_next_list or 'Not set' }}
+                                </div>
+                                <div class="col-12">
+                                    <i class="fas fa-building text-info me-1"></i> {{ case.establishment_name or 'N/A' }}
+                                </div>
+                            </div>
+                        </div>
+
+                        {% if case.user_notes %}
+                        <div class="notes-preview bg-light p-2 rounded small">
+                            <strong>Your Notes:</strong><br> {{ case.user_notes[:100] }}{% if case.user_notes|length > 100 %}...{% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="card-footer bg-transparent">
+                        <button class="btn btn-outline-primary btn-sm" onclick="openCaseDetail('{{ case.cino }}')">
+                                <i class="fas fa-edit me-1"></i>Edit
+                            </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %} {% else %}
+            <div class="col-12">
+                <div class="alert alert-info text-center">
+                    <i class="fas fa-info-circle fa-2x mb-3"></i>
+                    <h5>No Reviewed Cases Found</h5>
+                    <p class="mb-0">Cases that have been reviewed and have notes will appear here.</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+    function openCaseDetail(cino) {
+        window.location.href = `/case/${cino}`;
+    }
+
+    function createCalendarForReviewed() {
+        if (confirm('Create calendar events for all reviewed cases?')) {
+            window.location.href = '{{ url_for("dashboard") }}';
+            setTimeout(() => {
+                createCalendarEvents();
+            }, 500);
+        }
+    }
+</script>
+{% endblock %}
