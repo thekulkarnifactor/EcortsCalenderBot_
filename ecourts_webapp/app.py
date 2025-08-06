@@ -14,6 +14,9 @@ from calendar_utils import (
 
 app = Flask(__name__)
 
+app.static_folder = 'static'
+app.static_url_path = '/static'
+
 def get_or_create_secret_key():
     """Get existing secret key or create a new one"""
     secret_file = 'secret.key'

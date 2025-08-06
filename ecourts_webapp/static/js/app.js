@@ -12,6 +12,319 @@ let currentFilters = {
 let filteredCases = [];
 let allCasesData = [];
 
+
+// Initialize search functionality
+function initializeSearch() {
+    console.log('Initializing search...');
+    
+    // Get all case cards and create searchable data
+    allCasesData = Array.from(document.querySelectorAll('.case-card')).map(card => {
+        const container = card.closest('.col-xl-4, .col-lg-6');
+        return {
+            element: container,
+            cino: card.dataset.cino,
+            caseNo: card.querySelector('.card-title')?.textContent || '',
+            petitioner: card.querySelector('.case-parties .col-6:first-child .fw-medium')?.textContent || '',
+            respondent: card.querySelector('.case-parties .col-6:last-child .fw-medium')?.textContent || '',
+            establishment: card.querySelector('.case-details')?.textContent || '',
+            nextDate: extractDateFromCard(card) || '',
+            isChanged: card.dataset.changed === 'true',
+            hasNotes: card.querySelector('.notes-input')?.value.trim() !== ''
+        };
+    });
+    
+    console.log(`Search initialized with ${allCasesData.length} cases`);
+}
+
+// Extract date from card for filtering
+function extractDateFromCard(card) {
+    try {
+        const detailsText = card.querySelector('.case-details')?.textContent || '';
+        const dateMatch = detailsText.match(/date_next_list[:\s]+(\d{4}-\d{2}-\d{2})/i);
+        return dateMatch ? dateMatch[1] : '';
+    } catch (e) {
+        return '';
+    }
+}
+
+// Mark case as modified
+function markCaseModified(cino) {
+    console.log('Marking case modified:', cino);
+    
+    pendingChanges.add(cino);
+    const card = document.querySelector(`[data-cino="${cino}"]`);
+    
+    if (card) {
+        card.classList.add('border-warning');
+        card.dataset.changed = 'true';
+        
+        // Add unsaved indicator
+        let indicator = card.querySelector('.unsaved-indicator');
+        if (!indicator) {
+            indicator = document.createElement('span');
+            indicator.className = 'badge bg-warning position-absolute top-0 end-0 translate-middle unsaved-indicator';
+            indicator.textContent = 'Unsaved';
+            indicator.style.zIndex = '10';
+            card.style.position = 'relative';
+            card.appendChild(indicator);
+        }
+        
+        // Add header if not exists
+        let header = card.querySelector('.card-header');
+        if (!header) {
+            header = document.createElement('div');
+            header.className = 'card-header bg-warning text-dark';
+            header.innerHTML = '<small><i class="fas fa-exclamation-triangle me-1"></i>Modified</small>';
+            card.insertBefore(header, card.firstChild);
+        }
+    }
+    
+    updateSaveAllButton();
+}
+
+// Save individual case
+function saveCase(cino) {
+    console.log('Saving case:', cino);
+    
+    const card = document.querySelector(`[data-cino="${cino}"]`);
+    if (!card) {
+        showAlert('Case card not found', 'danger');
+        return;
+    }
+    
+    const notesInput = card.querySelector('.notes-input');
+    const notes = notesInput ? notesInput.value : '';
+    
+    const saveBtn = event.target;
+    const originalText = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    
+    fetch(`/case/${cino}/update`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ notes: notes })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        showAlert('Case saved successfully', 'success');
+        
+        // Clear modified status
+        pendingChanges.delete(cino);
+        card.classList.remove('border-warning', 'border-info');
+        card.dataset.changed = 'false';
+        
+        // Remove indicators
+        const indicator = card.querySelector('.unsaved-indicator');
+        if (indicator) indicator.remove();
+        
+        const header = card.querySelector('.card-header');
+        if (header) header.remove();
+        
+        updateSaveAllButton();
+    })
+    .catch(error => {
+        console.error('Save error:', error);
+        showAlert('Failed to save case: ' + error.message, 'danger');
+    })
+    .finally(() => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+    });
+}
+
+// Save all cases function
+function saveAllCases() {
+    console.log('Saving all cases...');
+    
+    if (pendingChanges.size === 0) {
+        showAlert('No cases need to be saved', 'info');
+        return;
+    }
+
+    const saveAllBtn = document.getElementById('saveAllBtn');
+    if (!saveAllBtn) {
+        console.error('Save All button not found');
+        return;
+    }
+
+    // Prepare updates array
+    const updates = [];
+    pendingChanges.forEach(cino => {
+        const card = document.querySelector(`[data-cino="${cino}"]`);
+        if (card) {
+            const notesInput = card.querySelector('.notes-input');
+            const notes = notesInput ? notesInput.value : '';
+            updates.push({
+                cino: cino,
+                notes: notes
+            });
+        }
+    });
+
+    // Show loading state
+    saveAllBtn.disabled = true;
+    saveAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+
+    fetch('/save_all', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            updates: updates
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        showAlert(data.message || 'All cases saved successfully', 'success');
+        
+        // Clear all pending changes
+        pendingChanges.clear();
+        
+        // Update all cards
+        document.querySelectorAll('.case-card[data-changed="true"]').forEach(card => {
+            card.classList.remove('border-warning', 'border-info');
+            card.dataset.changed = 'false';
+            const indicator = card.querySelector('.unsaved-indicator');
+            if (indicator) indicator.remove();
+            const header = card.querySelector('.card-header');
+            if (header) header.remove();
+        });
+        
+        updateSaveAllButton();
+        
+        // Refresh after delay
+        setTimeout(() => {
+            location.reload();
+        }, 2000);
+    })
+    .catch(error => {
+        console.error('Save all error:', error);
+        showAlert('Failed to save cases: ' + error.message, 'danger');
+    })
+    .finally(() => {
+        saveAllBtn.disabled = false;
+        updateSaveAllButton();
+    });
+}
+
+// Update Save All Button
+function updateSaveAllButton() {
+    const saveAllBtn = document.getElementById('saveAllBtn');
+    if (saveAllBtn) {
+        const count = pendingChanges.size;
+        if (count > 0) {
+            saveAllBtn.innerHTML = `<i class="fas fa-save me-2"></i>Save All Cases (${count})`;
+            saveAllBtn.classList.remove('btn-save-all');
+            saveAllBtn.classList.add('btn-warning');
+        } else {
+            saveAllBtn.innerHTML = '<i class="fas fa-save me-2"></i>Save All Cases';
+            saveAllBtn.classList.add('btn-save-all');
+            saveAllBtn.classList.remove('btn-warning');
+        }
+    }
+}
+
+// Show alert function
+function showAlert(message, type = 'info') {
+    // Remove existing alerts
+    document.querySelectorAll('.alert.position-fixed').forEach(alert => alert.remove());
+    
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
+// Setup notes change handlers
+function setupNotesChangeHandlers() {
+    document.addEventListener('input', function(event) {
+        if (event.target.classList.contains('notes-input')) {
+            const card = event.target.closest('.case-card');
+            if (card) {
+                const cino = card.dataset.cino;
+                if (cino) {
+                    markCaseModified(cino);
+                }
+            }
+        }
+    });
+}
+
+// Date filter functions (add the missing ones)
+function setDateFilter(period) {
+    console.log('Setting date filter:', period);
+    // Implementation for date filtering
+    handleSearch();
+}
+
+function clearDateFilter() {
+    console.log('Clearing date filter');
+    const dateFromInput = document.getElementById('dateFromInput');
+    const dateToInput = document.getElementById('dateToInput');
+    
+    if (dateFromInput) dateFromInput.value = '';
+    if (dateToInput) dateToInput.value = '';
+    
+    handleSearch();
+}
+
+function clearAllFilters() {
+    console.log('Clearing all filters');
+    const searchInput = document.getElementById('searchInput');
+    const dateFromInput = document.getElementById('dateFromInput');
+    const dateToInput = document.getElementById('dateToInput');
+    
+    if (searchInput) searchInput.value = '';
+    if (dateFromInput) dateFromInput.value = '';
+    if (dateToInput) dateToInput.value = '';
+    
+    currentFilters = { text: '', dateFrom: '', dateTo: '', advanced: {} };
+    handleSearch();
+}
+
+function handleSearch() {
+    console.log('Handling search...');
+    // Basic search implementation
+    const searchText = document.getElementById('searchInput')?.value || '';
+    // Add your search logic here
+}
+
+// Initialize everything when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing app...');
+    
+    initializeSearch();
+    setupNotesChangeHandlers();
+    updateSaveAllButton();
+    
+    console.log('App initialized successfully');
+});
+
+
 // Utility Functions
 function showAlert(message, type = 'info') {
     clearTimeout(alertTimeout);
@@ -342,13 +655,19 @@ function matchesAdvancedFilters(caseData, advancedFilters) {
 }
 
 // Quick date filter functions
+// Fixed setDateFilter function - Add proper event handling
 function setDateFilter(period) {
     const today = new Date();
     const dateFromInput = document.getElementById('dateFromInput');
     const dateToInput = document.getElementById('dateToInput');
     
-    let fromDate, toDate;
+    if (!dateFromInput || !dateToInput) {
+        console.error('Date input fields not found');
+        return;
+    }
     
+    let fromDate, toDate;
+
     switch (period) {
         case 'today':
             fromDate = toDate = today.toISOString().split('T')[0];
@@ -374,17 +693,24 @@ function setDateFilter(period) {
             toDate = nextWeekEnd.toISOString().split('T')[0];
             break;
     }
-    
-    if (dateFromInput) dateFromInput.value = fromDate;
-    if (dateToInput) dateToInput.value = toDate;
-    
+
+    dateFromInput.value = fromDate;
+    dateToInput.value = toDate;
+
+    // Update button states
     document.querySelectorAll('.btn-group .btn').forEach(btn => {
         btn.classList.remove('active');
     });
-    event.target.classList.add('active');
     
+    // Find the clicked button and mark it as active
+    const clickedBtn = event ? event.target : document.querySelector(`[onclick="setDateFilter('${period}')"]`);
+    if (clickedBtn) {
+        clickedBtn.classList.add('active');
+    }
+
     handleSearch();
 }
+
 
 function clearDateFilter() {
     document.getElementById('dateFromInput').value = '';
@@ -932,57 +1258,209 @@ function displayEventsPreview(events, totalCount) {
     eventsList.innerHTML = eventsHtml;
 }
 
-// Initialize when document loads
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize search functionality
-    initializeSearch();
+function saveAllCases() {
+    const saveAllBtn = document.getElementById('saveAllBtn');
+    if (!saveAllBtn) {
+        console.error('Save All button not found');
+        return;
+    }
     
-    // Bind search events
-    document.getElementById('searchInput')?.addEventListener('input', handleSearch);
-    document.getElementById('dateFromInput')?.addEventListener('change', handleSearch);
-    document.getElementById('dateToInput')?.addEventListener('change', handleSearch);
-    
-    // Auto-expand changes for first 3 changed cases
-    document.querySelectorAll('.change-summary').forEach((element, index) => {
-        if (index < 3) {
-            element.style.display = 'block';
+    if (pendingChanges.size === 0) {
+        showAlert('No cases need to be saved', 'info');
+        return;
+    }
+
+    // Prepare updates array
+    const updates = [];
+    pendingChanges.forEach(cino => {
+        const card = document.querySelector(`[data-cino="${cino}"]`);
+        if (card) {
+            const notesInput = card.querySelector('.notes-input');
+            const notes = notesInput ? notesInput.value : '';
+            updates.push({
+                cino: cino,
+                notes: notes,
+                fields: {} // Add other fields if needed
+            });
         }
     });
-    
-    // Initialize tooltips
-    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
+
+    // Show loading state
+    saveAllBtn.disabled = true;
+    saveAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+
+    fetch('/save_all', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            updates: updates
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        showAlert(data.message || 'All cases saved successfully', 'success');
+        
+        // Clear all pending changes
+        pendingChanges.clear();
+        
+        // Update all cards
+        document.querySelectorAll('.case-card[data-changed="true"]').forEach(card => {
+            card.classList.remove('border-warning', 'border-info');
+            card.dataset.changed = 'false';
+            const indicator = card.querySelector('.unsaved-indicator');
+            if (indicator) indicator.remove();
+            const header = card.querySelector('.card-header');
+            if (header) header.remove();
+        });
+        
+        updateSaveAllButton();
+        updateStatistics();
+        
+        // Refresh the page after a short delay to show updated data
+        setTimeout(() => {
+            location.reload();
+        }, 2000);
+    })
+    .catch(error => {
+        showAlert('Failed to save cases: ' + error.message, 'danger');
+    })
+    .finally(() => {
+        saveAllBtn.disabled = false;
+        updateSaveAllButton();
     });
-    
-    // Keyboard shortcuts
-    document.addEventListener('keydown', function(e) {
-        if (e.ctrlKey && e.key === 's') {
-            e.preventDefault();
-            saveAllCases();
+}
+
+// Update Save All Button appearance - Fixed
+function updateSaveAllButton() {
+    const saveAllBtn = document.getElementById('saveAllBtn');
+    if (saveAllBtn) {
+        const count = pendingChanges.size;
+        if (count > 0) {
+            saveAllBtn.innerHTML = `<i class="fas fa-save me-2"></i>Save All Cases (${count})`;
+            saveAllBtn.classList.remove('btn-save-all');
+            saveAllBtn.classList.add('btn-warning');
+        } else {
+            saveAllBtn.innerHTML = '<i class="fas fa-save me-2"></i>Save All Cases';
+            saveAllBtn.classList.add('btn-save-all');
+            saveAllBtn.classList.remove('btn-warning');
         }
-        if (e.ctrlKey && e.key === 'u') {
-            e.preventDefault();
-            document.getElementById('fileInput').click();
-        }
-    });
-    
-    // Initialize tab switching with proper layout handling
-    const tabLinks = document.querySelectorAll('[data-bs-toggle="tab"]');
-    
-    tabLinks.forEach(link => {
-        link.addEventListener('shown.bs.tab', function(e) {
-            const target = e.target.getAttribute('href');
-            const targetPane = document.querySelector(target);
-            
-            if (targetPane) {
-                targetPane.style.display = 'block';
-                
-                const cards = targetPane.querySelectorAll('.case-card');
-                cards.forEach(card => {
-                    card.style.height = 'auto';
-                });
+    }
+}
+
+// Add notes change handler
+function setupNotesChangeHandlers() {
+    document.addEventListener('input', function(event) {
+        if (event.target.classList.contains('notes-input')) {
+            const card = event.target.closest('.case-card');
+            if (card) {
+                const cino = card.dataset.cino;
+                if (cino) {
+                    markCaseModified(cino);
+                }
             }
+        }
+    });
+}
+
+// Enhanced initialization
+function initializeApp() {
+    initializeSearch();
+    setupNotesChangeHandlers();
+    updateSaveAllButton();
+    
+    // Add click handlers for date filter buttons
+    document.querySelectorAll('[onclick^="setDateFilter"]').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const period = this.getAttribute('onclick').match(/'([^']+)'/)[1];
+            setDateFilter(period);
         });
     });
+    
+    // Add click handler for clear date filter
+    const clearDateBtn = document.querySelector('[onclick="clearDateFilter()"]');
+    if (clearDateBtn) {
+        clearDateBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            clearDateFilter();
+        });
+    }
+    
+    // Add click handler for clear all filters
+    const clearAllBtn = document.querySelector('[onclick="clearAllFilters()"]');
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            clearAllFilters();
+        });
+    }
+}
+
+
+// Initialize when document loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the app
+    initializeApp();
+    
+    // Date filter buttons
+    document.querySelectorAll('[data-period]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const period = this.getAttribute('data-period');
+            setDateFilter(period);
+        });
+    });
+    
+    // Clear dates button
+    const clearDatesBtn = document.getElementById('clearDatesBtn');
+    if (clearDatesBtn) {
+        clearDatesBtn.addEventListener('click', clearDateFilter);
+    }
+    
+    // Clear all filters button
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', clearAllFilters);
+    }
+    
+    // Save All button - make sure it's properly connected
+    const saveAllBtn = document.getElementById('saveAllBtn');
+    if (saveAllBtn) {
+        saveAllBtn.addEventListener('click', saveAllCases);
+    }
 });
+
+// Fixed clearDateFilter function
+function clearDateFilter() {
+    const dateFromInput = document.getElementById('dateFromInput');
+    const dateToInput = document.getElementById('dateToInput');
+    
+    if (dateFromInput) dateFromInput.value = '';
+    if (dateToInput) dateToInput.value = '';
+    
+    document.querySelectorAll('.btn-group .btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    handleSearch();
+}
+
+// Fixed clearAllFilters function  
+function clearAllFilters() {
+    const searchInput = document.getElementById('searchInput');
+    const dateFromInput = document.getElementById('dateFromInput');
+    const dateToInput = document.getElementById('dateToInput');
+    
+    if (searchInput) searchInput.value = '';
+    if (dateFromInput) dateFromInput.value = '';
+    if (dateToInput) dateToInput.value = '';
+    
+    currentFilters = { text: '', dateFrom: '', dateTo: '', advanced: {} };
+    
+    document.querySelectorAll('.btn-group .btn.active').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    filterCases();
+}

@@ -1,0 +1,249 @@
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h5>Processing...</h5>
+                <p class="text-muted">Please wait while we save your changes.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Advanced Search Modal -->
+<div class="modal fade" id="advancedSearchModal" tabindex="-1" aria-labelledby="advancedSearchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="advancedSearchModalLabel">
+                    <i class="fas fa-search me-2"></i>Advanced Search
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <h6>Case Information</h6>
+                        <div class="mb-3">
+                            <label for="advCaseNo" class="form-label">Case Number</label>
+                            <input type="text" class="form-control" id="advCaseNo" placeholder="Enter case number">
+                        </div>
+                        <div class="mb-3">
+                            <label for="advCino" class="form-label">CINO</label>
+                            <input type="text" class="form-control" id="advCino" placeholder="Enter CINO">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Party Names</h6>
+                        <div class="mb-3">
+                            <label for="advPetitioner" class="form-label">Petitioner</label>
+                            <input type="text" class="form-control" id="advPetitioner" placeholder="Enter petitioner name">
+                        </div>
+                        <div class="mb-3">
+                            <label for="advRespondent" class="form-label">Respondent</label>
+                            <input type="text" class="form-control" id="advRespondent" placeholder="Enter respondent name">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Location</h6>
+                        <div class="mb-3">
+                            <label for="advEstablishment" class="form-label">Establishment</label>
+                            <select class="form-select" id="advEstablishment">
+                                <option value="">All Establishments</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Case Status</h6>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="advChanged">
+                            <label class="form-check-label" for="advChanged">
+                                Cases with recent changes
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="advWithNotes">
+                            <label class="form-check-label" for="advWithNotes">
+                                Cases with notes
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="advReviewed">
+                            <label class="form-check-label" for="advReviewed">
+                                Reviewed cases only
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="clearAdvancedSearch()">Clear All</button>
+                <button type="button" class="btn btn-primary" onclick="applyAdvancedSearch()">Apply Search</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Calendar Creation Progress Modal -->
+<div class="modal fade" id="calendarCreationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-calendar-plus me-2"></i>Creating Calendar Events
+                </h5>
+            </div>
+            <div class="modal-body">
+                <div id="calendarProgressContent">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Creating...</span>
+                        </div>
+                        <h6>Preparing calendar events...</h6>
+                        <p class="text-muted">This may take a few moments.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Calendar Modal -->
+<div class="modal fade" id="deleteCalendarModal" tabindex="-1" aria-labelledby="deleteCalendarModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteCalendarModalLabel">
+                    <i class="fas fa-trash-alt me-2"></i>Manage Calendar Events
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Cleanup Options -->
+                <div class="mb-4">
+                    <h6 class="text-danger mb-3">⚠️ Choose Cleanup Option</h6>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="cleanupOption" id="completeCleanup" value="complete">
+                        <label class="form-check-label" for="completeCleanup">
+                            <strong>Complete System Cleanup</strong>
+                            <div class="small text-muted mt-1">
+                                Delete all calendar events, database records, and local files. Creates backup first.
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="cleanupOption" id="calendarOnly" value="calendar" checked>
+                        <label class="form-check-label" for="calendarOnly">
+                            <strong>Calendar Events Only</strong>
+                            <div class="small text-muted mt-1">
+                                Delete only court events from Google Calendar. Keep local data.
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="cleanupOption" id="localOnly" value="local">
+                        <label class="form-check-label" for="localOnly">
+                            <strong>Local Data Only</strong>
+                            <div class="small text-muted mt-1">
+                                Clear database and local files. Keep calendar events.
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Events Preview -->
+                <div id="eventsPreview" style="display: none;">
+                    <h6 class="mb-3">📅 Events Found: <span id="previewCount">0</span> <span id="totalEventsNote"></span></h6>
+                    <div id="eventsList" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                        <!-- Events will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Cleanup Progress -->
+                <div id="cleanupProgress" style="display: none;">
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Overall Progress</span>
+                            <span id="overallProgressPercent">0%</span>
+                        </div>
+                        <div class="progress mb-3">
+                            <div id="overallProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <p id="currentStepText" class="text-muted mb-0">Initializing...</p>
+                    </div>
+
+                    <!-- Cleanup Steps -->
+                    <div class="row text-center">
+                        <div class="col-3" id="backupStep">
+                            <i class="fas fa-database fa-2x mb-2"></i>
+                            <div class="small">Backup</div>
+                            <div class="small text-success" id="backupCount">✓</div>
+                        </div>
+                        <div class="col-3" id="calendarStep">
+                            <i class="fas fa-calendar-times fa-2x mb-2"></i>
+                            <div class="small">Calendar</div>
+                            <div class="small" id="deletedCount">0</div>
+                        </div>
+                        <div class="col-3" id="databaseStep">
+                            <i class="fas fa-database fa-2x mb-2"></i>
+                            <div class="small">Database</div>
+                            <div class="small" id="databaseCount">0</div>
+                        </div>
+                        <div class="col-3" id="filesStep">
+                            <i class="fas fa-file fa-2x mb-2"></i>
+                            <div class="small">Files</div>
+                            <div class="small" id="filesCount">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" id="previewBtn" onclick="previewCleanup()">
+                    <i class="fas fa-eye me-1"></i>Preview
+                </button>
+                <button type="button" class="btn btn-danger" id="cleanupBtn" onclick="confirmCleanup()" style="display: none;">
+                    <i class="fas fa-trash-alt me-1"></i>Start Cleanup
+                </button>
+                <button type="button" class="btn btn-secondary" id="cancelBtn" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Case Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadModalLabel">
+                    <i class="fas fa-upload me-2"></i>Upload Daily Cases File
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="caseFile" class="form-label">Select myCases.txt file</label>
+                        <input type="file" class="form-control" id="caseFile" accept=".txt" required>
+                        <div class="form-text">Upload your daily myCases.txt file to update case information.</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="uploadFile()">
+                    <i class="fas fa-upload me-1"></i>Upload & Process
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

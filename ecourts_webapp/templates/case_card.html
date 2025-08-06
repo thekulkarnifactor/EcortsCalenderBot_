@@ -22,16 +22,12 @@
                 </small>
 
                 <!-- User Side Badge from Database -->
-                {% if case.user_side == 'petitioner' %}
-                <span class="badge bg-light text-danger fw-bold">
-                    <i class="fas fa-user-tie"></i> PETITIONER
-                </span> {% elif case.user_side == 'respondent' %}
-                <span class="badge bg-light text-primary fw-bold">
-                    <i class="fas fa-user-shield"></i> RESPONDENT
-                </span> {% else %}
-                <span class="badge bg-secondary text-white">
-                    <i class="fas fa-question"></i> Not Set
-                </span> {% endif %}
+                <div class="user-side-badge-container">
+                    {% if case.user_side == 'petitioner' %}
+                    <span class="user-side-badge petitioner">Petitioner</span> {% elif case.user_side == 'respondent' %}
+                    <span class="user-side-badge respondent">Respondent</span> {% else %}
+                    <span class="user-side-badge not-set">Not Set</span> {% endif %}
+                </div>
             </div>
         </div>
 

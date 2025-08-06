@@ -2,606 +2,259 @@
 <html lang="en">
 
 <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>e-Courts Case Management Dashboard</title>
-
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>e-Courts Dashboard</title>
+    <link rel="icon" href="data:,">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
-    <div id="wrapper">
-        <div id="content-wrapper" class="d-flex flex-column">
-            <div id="content">
-                <!-- Main Content -->
-                <div class="container-fluid">
-                    <!-- Page Header -->
-                    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-                        <h1 class="h3 mb-0 text-gray-800">e-Courts Dashboard</h1>
-                        <div class="d-flex gap-2">
-                            <input type="file" id="fileInput" accept=".txt" style="display: none;">
-                            <label for="fileInput" class="btn btn-primary">
-                                <i class="fas fa-upload"></i> Upload myCases.txt
-                            </label>
-                            <button class="btn btn-success" onclick="createCalendarEvents()">
-                                <i class="fas fa-calendar-plus"></i> Create Calendar
-                            </button>
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="display-6 fw-bold text-primary mb-0">
+                            <i class="fas fa-gavel me-2"></i>e-Courts Dashboard
+                        </h1>
+                        <p class="text-muted mb-0">{{ current_date }}</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <!-- Save All Cases Button -->
+                        <button type="button" class="btn btn-save-all" onclick="saveAllCases()" id="saveAllBtn">
+                            <i class="fas fa-save me-2"></i>Save All Cases
+                        </button>
+                        <a href="/create_case" class="btn btn-success">
+                            <i class="fas fa-plus me-2"></i>Create New Case
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics Cards Row - Removed My Cases -->
+        <div class="row mb-4">
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card stats-card bg-primary text-white h-100">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h3 class="card-title h2 mb-0">{{ total_cases }}</h3>
+                            <p class="card-text mb-0">Total Cases</p>
+                        </div>
+                        <div class="ms-3">
+                            <i class="fas fa-folder fa-2x opacity-75"></i>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <!-- Statistics Cards Row -->
-                    <div class="row">
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card border-left-primary shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Cases</div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_cases }}</div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-gavel fa-2x text-gray-300"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card stats-card bg-warning text-white h-100">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h3 class="card-title h2 mb-0">{{ changed_cases_count }}</h3>
+                            <p class="card-text mb-0">Recent Changes</p>
                         </div>
-
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card border-left-warning shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Recent Changes</div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ changed_cases_count }}</div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card border-left-success shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Reviewed Cases</div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ reviewed_cases_count }}</div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card border-left-info shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">My Cases</div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ petitioner_cases_count + respondent_cases_count }}</div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-user fa-2x text-gray-300"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                        <div class="ms-3">
+                            <i class="fas fa-exclamation-triangle fa-2x opacity-75"></i>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <!-- Search and Filters -->
-                    <div class="card shadow mb-4">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Search & Filter Cases</h6>
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card stats-card bg-success text-white h-100">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h3 class="card-title h2 mb-0">{{ reviewed_cases_count }}</h3>
+                            <p class="card-text mb-0">Reviewed Cases</p>
                         </div>
+                        <div class="ms-3">
+                            <i class="fas fa-check-circle fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-3">
+                <div class="card stats-card bg-info text-white h-100">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h3 class="card-title h2 mb-0">{{ upcoming_hearings_count }}</h3>
+                            <p class="card-text mb-0">Upcoming Hearings</p>
+                        </div>
+                        <div class="ms-3">
+                            <i class="fas fa-calendar-alt fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search & Filter Cases -->
+        <div class="search-container">
+            <h5 class="text-primary mb-3">
+                <i class="fas fa-search me-2"></i>Search & Filter Cases
+            </h5>
+
+            <div class="row search-main-row">
+                <div class="col-md-8 mb-3">
+                    <div class="card search-inputs-card h-100">
                         <div class="card-body">
-                            <div class="row mb-3">
-                                <div class="col-md-4">
-                                    <input type="text" class="form-control" id="searchInput" placeholder="Search cases, parties, or case numbers...">
+                            <div class="row g-3">
+                                <div class="col-md-12">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="fas fa-search"></i>
+                                        </span>
+                                        <input type="text" class="form-control" id="searchInput" placeholder="Search by case number, parties, or establishment..." onkeyup="handleSearch()">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="showAdvancedSearch()">
+                                            <i class="fas fa-cog"></i> Advanced
+                                        </button>
+                                    </div>
                                 </div>
-                                <div class="col-md-3">
-                                    <input type="date" class="form-control" id="dateFromInput" placeholder="From Date">
-                                </div>
-                                <div class="col-md-3">
-                                    <input type="date" class="form-control" id="dateToInput" placeholder="To Date">
-                                </div>
-                                <div class="col-md-2">
-                                    <button class="btn btn-secondary w-100" onclick="clearAllFilters()">
-                                        <i class="fas fa-times"></i> Clear
-                                    </button>
-                                </div>
-                            </div>
 
-                            <!-- Quick Date Filters -->
-                            <div class="btn-group mb-3" role="group">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setDateFilter('today')">Today</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setDateFilter('thisWeek')">This Week</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setDateFilter('thisMonth')">This Month</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setDateFilter('nextWeek')">Next Week</button>
+                                <div class="col-md-6">
+                                    <label class="date-filter-label">From Date:</label>
+                                    <input type="date" class="form-control date-filter-input" id="dateFromInput" onchange="handleSearch()">
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="date-filter-label">To Date:</label>
+                                    <input type="date" class="form-control date-filter-input" id="dateToInput" onchange="handleSearch()">
+                                </div>
+
+                                <div class="col-12">
+                                    <div class="btn-group btn-group-sm flex-wrap" role="group">
+                                        <button type="button" class="btn btn-outline-primary" data-period="today">Today</button>
+                                        <button type="button" class="btn btn-outline-primary" data-period="thisWeek">This Week</button>
+                                        <button type="button" class="btn btn-outline-primary" data-period="thisMonth">This Month</button>
+                                        <button type="button" class="btn btn-outline-primary" data-period="nextWeek">Next Week</button>
+                                        <button type="button" class="btn btn-outline-secondary" id="clearDatesBtn">Clear Dates</button>
+                                        <button type="button" class="btn btn-outline-danger" id="clearAllBtn">Clear All</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Tabs Navigation with Create Case Button -->
-                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
-                        <ul class="nav nav-tabs" id="casesTabs" role="tablist">
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link active" id="all-cases-tab" data-bs-toggle="tab" data-bs-target="#all-cases">
-                                    All Cases <span class="badge bg-light text-dark">{{ total_cases }}</span>
+                <div class="col-md-4 mb-3">
+                    <div class="card search-stats-card h-100">
+                        <div class="card-body text-center">
+                            <h4 class="text-primary mb-2">
+                                <span id="searchResultsCount" class="badge bg-primary">{{ total_cases }}</span>
+                            </h4>
+                            <p class="search-stats-text mb-3">Cases Found</p>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-primary btn-sm" onclick="createCalendarEvents('all')">
+                                    <i class="fas fa-calendar-plus me-1"></i>Create Calendar Events
                                 </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="changed-cases-tab" data-bs-toggle="tab" data-bs-target="#changed-cases">
-                                    Recent Changes <span class="badge bg-warning text-dark">{{ changed_cases_count }}</span>
+                                <button class="btn btn-outline-primary btn-sm" onclick="createCalendarEvents('reviewed_only')">
+                                    <i class="fas fa-calendar-check me-1"></i>Reviewed Only
                                 </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="petitioner-cases-tab" data-bs-toggle="tab" data-bs-target="#petitioner-cases">
-                                    <i class="fas fa-user-tie text-danger"></i> My Petitioner Cases 
-                                    <span class="badge bg-danger">{{ petitioner_cases_count }}</span>
+                                <button class="btn btn-outline-danger btn-sm" onclick="showDeleteCalendarModal()">
+                                    <i class="fas fa-trash-alt me-1"></i>Manage Calendar
                                 </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="respondent-cases-tab" data-bs-toggle="tab" data-bs-target="#respondent-cases">
-                                    <i class="fas fa-user-shield text-primary"></i> My Respondent Cases 
-                                    <span class="badge bg-primary">{{ respondent_cases_count }}</span>
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="reviewed-cases-tab" data-bs-toggle="tab" data-bs-target="#reviewed-cases">
-                                    <i class="fas fa-check-circle text-success"></i> Reviewed Cases 
-                                    <span class="badge bg-success">{{ reviewed_cases_count }}</span>
-                                </button>
-                            </li>
-                        </ul>
-
-                        <!-- Create New Case Button -->
-                        <div class="d-flex gap-2">
-                            <a href="{{ url_for('create_case') }}" class="btn btn-success">
-                                <i class="fas fa-plus"></i> Create New Case
-                            </a>
-                        </div>
-                    </div>
-
-                    <!-- Tab Content -->
-                    <div class="tab-content" id="casesTabContent">
-                        <!-- All Cases Tab -->
-                        <div class="tab-pane fade show active" id="all-cases" role="tabpanel">
-                            <div class="row">
-                                {% for case in cases %} {% include 'case_card.html' %} {% endfor %}
-                            </div>
-                        </div>
-
-                        <!-- Changed Cases Tab -->
-                        <div class="tab-pane fade" id="changed-cases" role="tabpanel">
-                            <div class="row">
-                                {% for case in changed_cases %} {% include 'case_card.html' %} {% endfor %}
-                            </div>
-                        </div>
-
-                        <!-- Petitioner Cases Tab -->
-                        <div class="tab-pane fade" id="petitioner-cases" role="tabpanel">
-                            <div class="row">
-                                {% for case in cases %} {% if case.user_side == 'petitioner' %} {% include 'case_card.html' %} {% endif %} {% endfor %}
-                            </div>
-                        </div>
-
-                        <!-- Respondent Cases Tab -->
-                        <div class="tab-pane fade" id="respondent-cases" role="tabpanel">
-                            <div class="row">
-                                {% for case in cases %} {% if case.user_side == 'respondent' %} {% include 'case_card.html' %} {% endif %} {% endfor %}
-                            </div>
-                        </div>
-
-                        <!-- Reviewed Cases Tab -->
-                        <div class="tab-pane fade" id="reviewed-cases" role="tabpanel">
-                            <div class="row">
-                                {% for case in reviewed_cases %} {% include 'case_card.html' %} {% endfor %}
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Loading Modal -->
-    <div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-body text-center py-4">
-                    <div class="spinner-border text-primary mb-3" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mb-0">Processing...</p>
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-tabs" id="casesTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="all-cases-tab" data-bs-toggle="tab" data-bs-target="#all-cases" type="button" role="tab">
+                    <i class="fas fa-list me-2"></i>All Cases
+                    <span class="badge bg-light text-dark ms-2">{{ total_cases }}</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="changed-cases-tab" data-bs-toggle="tab" data-bs-target="#changed-cases" type="button" role="tab">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Recent Changes
+                    <span class="badge bg-warning ms-2">{{ changed_cases_count }}</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="petitioner-cases-tab" data-bs-toggle="tab" data-bs-target="#petitioner-cases" type="button" role="tab">
+                    <i class="fas fa-user-tie me-2"></i>Petitioner Cases
+                    <span class="badge bg-danger ms-2">{{ petitioner_cases_count }}</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="respondent-cases-tab" data-bs-toggle="tab" data-bs-target="#respondent-cases" type="button" role="tab">
+                    <i class="fas fa-user-shield me-2"></i>Respondent Cases
+                    <span class="badge bg-primary ms-2">{{ respondent_cases_count }}</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="reviewed-cases-tab" data-bs-toggle="tab" data-bs-target="#reviewed-cases" type="button" role="tab">
+                    <i class="fas fa-check-circle me-2"></i>Reviewed Cases
+                    <span class="badge bg-success ms-2">{{ reviewed_cases_count }}</span>
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="casesTabContent">
+            <!-- All Cases Tab -->
+            <div class="tab-pane fade show active" id="all-cases" role="tabpanel">
+                <div class="row" id="allCasesContainer">
+                    {% for case in cases %} {% include 'case_card.html' %} {% endfor %}
+                </div>
+            </div>
+
+            <!-- Changed Cases Tab -->
+            <div class="tab-pane fade" id="changed-cases" role="tabpanel">
+                <div class="row" id="changedCasesContainer">
+                    {% for case in changed_cases %} {% include 'case_card.html' %} {% endfor %}
+                </div>
+            </div>
+
+            <!-- Petitioner Cases Tab -->
+            <div class="tab-pane fade" id="petitioner-cases" role="tabpanel">
+                <div class="row" id="petitionerCasesContainer">
+                    {% for case in cases %} {% if case.user_side == 'petitioner' %} {% include 'case_card.html' %} {% endif %} {% endfor %}
+                </div>
+            </div>
+
+            <!-- Respondent Cases Tab -->
+            <div class="tab-pane fade" id="respondent-cases" role="tabpanel">
+                <div class="row" id="respondentCasesContainer">
+                    {% for case in cases %} {% if case.user_side == 'respondent' %} {% include 'case_card.html' %} {% endif %} {% endfor %}
+                </div>
+            </div>
+
+            <!-- Reviewed Cases Tab -->
+            <div class="tab-pane fade" id="reviewed-cases" role="tabpanel">
+                <div class="row" id="reviewedCasesContainer">
+                    {% for case in reviewed_cases %} {% include 'case_card.html' %} {% endfor %}
                 </div>
             </div>
         </div>
+
+        <!-- Empty State Message (will be shown/hidden by JavaScript) -->
+        <div id="noResultsMessage" style="display: none;"></div>
     </div>
 
-    <!-- Bootstrap JS -->
+    <!-- Include all your existing modals here -->
+    {% include 'modals.html' %}
+
+    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script>
-        // Global variables
-        let pendingChanges = new Set();
-        let alertTimeout;
-
-        // Utility Functions
-        function showAlert(message, type = 'info') {
-            clearTimeout(alertTimeout);
-            document.querySelectorAll('.alert.position-fixed').forEach(alert => alert.remove());
-
-            const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-            alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-            alertDiv.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-
-            document.body.appendChild(alertDiv);
-            alertTimeout = setTimeout(() => {
-                if (alertDiv.parentNode) {
-                    alertDiv.remove();
-                }
-            }, 5000);
-        }
-
-        function showLoading() {
-            const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
-            modal.show();
-        }
-
-        function hideLoading() {
-            const modal = bootstrap.Modal.getInstance(document.getElementById('loadingModal'));
-            if (modal) modal.hide();
-        }
-
-        // Case Management Functions
-        window.markCaseModified = function(cino) {
-            pendingChanges.add(cino);
-            const card = document.querySelector(`[data-cino="${cino}"]`);
-            if (card) {
-                card.classList.add('border-info');
-            }
-        };
-
-        window.saveCase = function(cino) {
-            const card = document.querySelector(`[data-cino="${cino}"]`);
-            const notesInput = card.querySelector('.notes-input');
-            const notes = notesInput ? notesInput.value : '';
-
-            showLoading();
-
-            fetch(`/case/${cino}/update`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        notes: notes
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    hideLoading();
-                    if (data.error) {
-                        showAlert(data.error, 'danger');
-                    } else {
-                        showAlert('Case saved successfully', 'success');
-                        pendingChanges.delete(cino);
-                        card.classList.remove('border-info');
-                    }
-                })
-                .catch(error => {
-                    hideLoading();
-                    showAlert('Failed to save case: ' + error.message, 'danger');
-                });
-        };
-
-        window.markReviewed = function(cino) {
-            showLoading();
-
-            fetch(`/case/${cino}/mark_reviewed`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    hideLoading();
-                    if (data.error) {
-                        showAlert(data.error, 'danger');
-                    } else {
-                        showAlert('Case marked as reviewed', 'success');
-                        setTimeout(() => location.reload(), 1000);
-                    }
-                })
-                .catch(error => {
-                    hideLoading();
-                    showAlert('Failed to mark as reviewed: ' + error.message, 'danger');
-                });
-        };
-
-        window.openCaseDetail = function(cino) {
-            window.location.href = `/case/${cino}`;
-        };
-
-        // User Side Management Functions
-        window.setUserSide = function(cino, userSide) {
-            fetch(`/case/${cino}/update`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        notes: '',
-                        updates: {
-                            user_side: userSide
-                        }
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        showAlert(data.error, 'danger');
-                    } else {
-                        showAlert('User side updated!', 'success');
-                        setTimeout(() => location.reload(), 1000);
-                    }
-                })
-                .catch(error => {
-                    showAlert('Failed to update user side: ' + error.message, 'danger');
-                });
-        };
-
-        // Search and Filter Functions
-        function handleSearch() {
-            const searchText = document.getElementById('searchInput').value.toLowerCase();
-            const dateFrom = document.getElementById('dateFromInput').value;
-            const dateTo = document.getElementById('dateToInput').value;
-
-            // Get all case cards from the active tab
-            const activeTab = document.querySelector('.tab-pane.active');
-            const allCards = activeTab.querySelectorAll('.case-card');
-            let visibleCount = 0;
-
-            allCards.forEach(card => {
-                let matches = true;
-
-                // Text search
-                if (searchText) {
-                    const cardText = card.textContent.toLowerCase();
-                    matches = matches && cardText.includes(searchText);
-                }
-
-                // Date range filter
-                if (dateFrom || dateTo) {
-                    const hearingDateElement = card.querySelector('.case-details');
-                    if (hearingDateElement) {
-                        const hearingText = hearingDateElement.textContent;
-                        const dateMatch = hearingText.match(/(\d{4}-\d{2}-\d{2})/);
-
-                        if (dateMatch) {
-                            const hearingDate = new Date(dateMatch[1]);
-
-                            if (dateFrom) {
-                                const fromDate = new Date(dateFrom);
-                                if (hearingDate < fromDate) matches = false;
-                            }
-
-                            if (dateTo) {
-                                const toDate = new Date(dateTo);
-                                if (hearingDate > toDate) matches = false;
-                            }
-                        } else if (dateFrom || dateTo) {
-                            matches = false; // No valid date found
-                        }
-                    }
-                }
-
-                // Show/hide card
-                const cardContainer = card.closest('.col-xl-4, .col-lg-6');
-                if (cardContainer) {
-                    if (matches) {
-                        cardContainer.style.display = '';
-                        visibleCount++;
-                    } else {
-                        cardContainer.style.display = 'none';
-                    }
-                }
-            });
-
-            // Show no results message if needed
-            showNoResultsMessage(visibleCount === 0 && (searchText || dateFrom || dateTo));
-        }
-
-        function showNoResultsMessage(show) {
-            // Remove existing messages
-            document.querySelectorAll('#noResultsMessage').forEach(msg => msg.remove());
-
-            if (show) {
-                const activeTab = document.querySelector('.tab-pane.active .row');
-                if (activeTab) {
-                    const noResultsMsg = document.createElement('div');
-                    noResultsMsg.id = 'noResultsMessage';
-                    noResultsMsg.className = 'col-12 text-center py-5';
-                    noResultsMsg.innerHTML = `
-                        <div class="alert alert-warning">
-                            <i class="fas fa-search fa-2x mb-3"></i>
-                            <h5>No Cases Found</h5>
-                            <p class="mb-0">Try adjusting your search criteria or clearing filters.</p>
-                        </div>
-                    `;
-                    activeTab.appendChild(noResultsMsg);
-                }
-            }
-        }
-
-        // Date filter functions
-        window.setDateFilter = function(period) {
-            const today = new Date();
-            const dateFromInput = document.getElementById('dateFromInput');
-            const dateToInput = document.getElementById('dateToInput');
-            let fromDate, toDate;
-
-            switch (period) {
-                case 'today':
-                    fromDate = toDate = today.toISOString().split('T')[0];
-                    break;
-                case 'thisWeek':
-                    const startOfWeek = new Date(today);
-                    startOfWeek.setDate(today.getDate() - today.getDay());
-                    const endOfWeek = new Date(startOfWeek);
-                    endOfWeek.setDate(startOfWeek.getDate() + 6);
-                    fromDate = startOfWeek.toISOString().split('T')[0];
-                    toDate = endOfWeek.toISOString().split('T')[0];
-                    break;
-                case 'thisMonth':
-                    fromDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-                    toDate = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-                    break;
-                case 'nextWeek':
-                    const nextWeekStart = new Date(today);
-                    nextWeekStart.setDate(today.getDate() + (7 - today.getDay()));
-                    const nextWeekEnd = new Date(nextWeekStart);
-                    nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
-                    fromDate = nextWeekStart.toISOString().split('T')[0];
-                    toDate = nextWeekEnd.toISOString().split('T')[0];
-                    break;
-            }
-
-            dateFromInput.value = fromDate;
-            dateToInput.value = toDate;
-
-            // Clear active buttons and set current one
-            document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-
-            handleSearch();
-        };
-
-        window.clearAllFilters = function() {
-            document.getElementById('searchInput').value = '';
-            document.getElementById('dateFromInput').value = '';
-            document.getElementById('dateToInput').value = '';
-
-            document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
-
-            // Show all cards
-            document.querySelectorAll('.case-card').forEach(card => {
-                const cardContainer = card.closest('.col-xl-4, .col-lg-6');
-                if (cardContainer) {
-                    cardContainer.style.display = '';
-                }
-            });
-
-            // Remove no results message
-            document.querySelectorAll('#noResultsMessage').forEach(msg => msg.remove());
-
-            showAlert('All filters cleared', 'success');
-        };
-
-        // Calendar Functions
-        window.createCalendarEvents = function() {
-            showLoading();
-
-            fetch('/create_calendar_events', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    hideLoading();
-                    if (data.error) {
-                        showAlert(data.error, 'danger');
-                    } else {
-                        showAlert(data.message, 'success');
-                    }
-                })
-                .catch(error => {
-                    hideLoading();
-                    showAlert('Calendar creation failed: ' + error.message, 'danger');
-                });
-        };
-
-        // File Upload
-        function uploadFile(file) {
-            const formData = new FormData();
-            formData.append('file', file);
-
-            showLoading();
-
-            fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    hideLoading();
-                    if (data.error) {
-                        showAlert(data.error, 'danger');
-                    } else {
-                        showAlert(`File processed: ${data.stats.new} new, ${data.stats.updated} updated cases`, 'success');
-                        setTimeout(() => location.reload(), 1500);
-                    }
-                })
-                .catch(error => {
-                    hideLoading();
-                    showAlert('Upload failed: ' + error.message, 'danger');
-                });
-        }
-
-        // Initialize when DOM is loaded
+        // Initialize search functionality when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            // File upload
-            const fileInput = document.getElementById('fileInput');
-            if (fileInput) {
-                fileInput.addEventListener('change', function(e) {
-                    const file = e.target.files[0];
-                    if (file) {
-                        uploadFile(file);
-                    }
-                });
-            }
-
-            // Search event listeners
-            const searchInput = document.getElementById('searchInput');
-            const dateFromInput = document.getElementById('dateFromInput');
-            const dateToInput = document.getElementById('dateToInput');
-
-            if (searchInput) {
-                searchInput.addEventListener('input', handleSearch);
-            }
-            if (dateFromInput) {
-                dateFromInput.addEventListener('change', handleSearch);
-            }
-            if (dateToInput) {
-                dateToInput.addEventListener('change', handleSearch);
-            }
-
-            // Tab change event listeners
-            document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
-                tab.addEventListener('shown.bs.tab', function() {
-                    // Clear search when switching tabs
-                    clearAllFilters();
-                });
-            });
+            initializeSearch();
+            updateSaveAllButton();
         });
     </script>
 </body>
