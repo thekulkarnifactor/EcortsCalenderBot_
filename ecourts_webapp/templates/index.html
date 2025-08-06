@@ -1,742 +1,242 @@
-{% extends "base.html" %} {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-md-8">
-                        <h4 class="mb-1">Daily Case Management</h4>
-                        <p class="text-muted mb-0">Upload daily myCases.txt file to track changes and manage case notes</p>
-                    </div>
-                    <div class="col-md-4 text-end">
-                        <input type="file" id="fileInput" accept=".txt" class="d-none">
-                        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
-                            <i class="fas fa-upload me-2"></i>Upload myCases.txt
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+<!DOCTYPE html>
+<html lang="en">
 
-<!-- Statistics Cards -->
-<div class="row mb-4 stats-card-container">
-    <div class="col-lg-3 col-md-6 mb-3">
-        <div class="card bg-primary text-white border-0">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h3 class="mb-0">{{ total_cases }}</h3>
-                        <small>Total Cases</small>
-                    </div>
-                    <i class="fas fa-folder-open fa-2x opacity-75"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-3 col-md-6 mb-3">
-        <div class="card bg-warning text-white border-0">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h3 class="mb-0">{{ changed_cases|length }}</h3>
-                        <small>Changed Cases</small>
-                    </div>
-                    <i class="fas fa-exclamation-triangle fa-2x opacity-75"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-3 col-md-6 mb-3">
-        <div class="card bg-success text-white border-0">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h3 class="mb-0" id="reviewedCount">{{ total_cases - changed_cases|length }}</h3>
-                        <small>Reviewed Cases</small>
-                    </div>
-                    <i class="fas fa-check-circle fa-2x opacity-75"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-3 col-md-6 mb-3">
-        <div class="card bg-info text-white border-0">
-            <div class="card-body text-center">
-                <button class="btn btn-light btn-sm w-100 mb-2" onclick="saveAllCases()">
-                    <i class="fas fa-save me-2"></i>Save All
-                </button>
-                <button class="btn btn-outline-light btn-sm w-100 mb-2" onclick="createCalendarEvents()">
-                    <i class="fas fa-calendar-plus me-2"></i>Update Calendar
-                </button>
-                <button class="btn btn-outline-danger btn-sm w-100" onclick="showDeleteCalendarModal()">
-                    <i class="fas fa-trash me-2"></i>Delete Calendar
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>e-Courts Case Management Dashboard</title>
 
-<!-- Enhanced Search Bar with Fixed Layout -->
-<div class="search-container mb-4">
-    <div class="row search-main-row g-3">
-        <!-- Search Inputs Section -->
-        <div class="col-md-8">
-            <div class="card border-0 shadow-sm search-inputs-card h-100">
-                <div class="card-body">
-                    <div class="row g-3">
-                        <!-- Main Search Input -->
-                        <div class="col-md-6">
-                            <label class="form-label small text-muted mb-1">Search Cases</label>
-                            <div class="input-group">
-                                <span class="input-group-text">
-                                    <i class="fas fa-search"></i>
-                                </span>
-                                <input type="text" class="form-control" id="searchInput" placeholder="Case no, names (e.g., Vaishali vs Uday)..." oninput="handleSearch()">
-                            </div>
-                        </div>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
 
-                        <!-- Date Range Filters with Clear Labels -->
-                        <div class="col-md-3">
-                            <div class="date-filter-group">
-                                <label class="form-label small text-muted mb-1">From Date</label>
-                                <input type="date" class="form-control date-filter-input" id="dateFromInput" title="Filter cases from this date" onchange="handleSearch()">
-                            </div>
-                        </div>
-
-                        <div class="col-md-3">
-                            <div class="date-filter-group">
-                                <label class="form-label small text-muted mb-1">To Date</label>
-                                <input type="date" class="form-control date-filter-input" id="dateToInput" title="Filter cases up to this date" onchange="handleSearch()">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Quick Date Filter Buttons -->
-                    <div class="row mt-3">
-                        <div class="col-12">
-                            <label class="form-label small text-muted mb-2">Quick Date Filters:</label>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-primary" onclick="setDateFilter('today')">Today</button>
-                                <button type="button" class="btn btn-outline-primary" onclick="setDateFilter('thisWeek')">This Week</button>
-                                <button type="button" class="btn btn-outline-primary" onclick="setDateFilter('thisMonth')">This Month</button>
-                                <button type="button" class="btn btn-outline-primary" onclick="setDateFilter('nextWeek')">Next Week</button>
-                            </div>
-                            <!-- Clear button -->
-                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearDateFilter()">
-                                <i class="fas fa-times"></i> Clear Dates
+<body>
+    <div id="wrapper">
+        <div id="content-wrapper" class="d-flex flex-column">
+            <div id="content">
+                <!-- Main Content -->
+                <div class="container-fluid">
+                    <!-- Page Header -->
+                    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+                        <h1 class="h3 mb-0 text-gray-800">e-Courts Dashboard</h1>
+                        <div class="d-flex gap-2">
+                            <input type="file" id="fileInput" accept=".txt" style="display: none;">
+                            <label for="fileInput" class="btn btn-primary">
+                                <i class="fas fa-upload"></i> Upload myCases.txt
+                            </label>
+                            <button class="btn btn-success" onclick="createCalendarEvents()">
+                                <i class="fas fa-calendar-plus"></i> Create Calendar
                             </button>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Search Results and Actions Section -->
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm search-stats-card h-100">
-                <div class="card-body d-flex flex-column justify-content-between">
-                    <div class="search-results-header mb-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="search-stats-text">Search Results:</span>
-                            <span class="badge bg-primary" id="searchResultsCount">{{ total_cases }}</span>
-                        </div>
-                    </div>
-
-                    <div class="search-actions d-grid gap-2">
-                        <button class="btn btn-outline-secondary btn-sm" onclick="exportFilteredCases()">
-                            <i class="fas fa-download me-1"></i>Export Results
-                        </button>
-                        <button class="btn btn-outline-info btn-sm" onclick="showAdvancedSearch()">
-                            <i class="fas fa-filter me-1"></i>Advanced Search
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Filter Tabs -->
-<ul class="nav nav-tabs mb-4" id="casesTabs">
-    <li class="nav-item">
-        <a class="nav-link active" data-bs-toggle="tab" href="#all-cases">
-            All Cases <span class="badge bg-secondary ms-1">{{ total_cases }}</span>
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="tab" href="#changed-cases">
-            Changed Cases <span class="badge bg-warning ms-1">{{ changed_cases|length }}</span>
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="tab" href="#reviewed-cases">
-            Reviewed & Ready <span class="badge bg-success ms-1">{{ reviewed_cases|length }}</span>
-        </a>
-    </li>
-</ul>
-
-<!-- Cases Content -->
-<div class="tab-content">
-    <!-- All Cases Tab -->
-    <div class="tab-pane fade show active" id="all-cases">
-        <div class="row" id="allCasesContainer">
-            {% for case in cases %}
-            <div class="col-xl-4 col-lg-6">
-                <div class="card case-card h-100 {{ 'border-warning' if case.is_changed else '' }}" data-cino="{{ case.cino }}" data-changed="{{ 'true' if case.is_changed else 'false' }}">
-
-                    {% if case.is_changed %}
-                    <div class="card-header bg-warning bg-opacity-10">
-                        <small class="text-warning fw-bold">
-                            <i class="fas fa-exclamation-triangle"></i> Case Updated
-                        </small>
-                    </div>
-                    {% endif %}
-
-                    <div class="card-body d-flex flex-column">
-                        <!-- Case Title - Fixed height -->
-                        <h6 class="card-title text-primary">{{ case.case_no or 'No Case Number' }}</h6>
-
-                        <!-- Case Parties - Fixed height -->
-                        <div class="case-parties">
-                            <div class="row">
-                                <div class="col-6">
-                                    <small class="text-muted">Petitioner:</small>
-                                    <div class="fw-medium">{{ case.petparty_name or 'Not Available' }}</div>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted">Respondent:</small>
-                                    <div class="fw-medium">{{ case.resparty_name or 'Not Available' }}</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Case Details - Fixed height with scroll -->
-                        <div class="case-details">
-                            <strong>Court:</strong> {{ case.establishment_name or 'N/A' }}<br>
-                            <strong>State:</strong> {{ case.state_name or 'N/A' }}<br>
-                            <strong>District:</strong> {{ case.district_name or 'N/A' }}<br>
-                            <strong>Next Date:</strong> {{ case.date_next_list or 'Not set' }}<br>
-                            <strong>Purpose:</strong> {{ case.purpose_name or 'N/A' }}<br>
-                            <strong>Type:</strong> {{ case.type_name or 'N/A' }}
-                        </div>
-
-                        <!-- Change Summary (if any) -->
-                        {% if case.is_changed and case.change_summary %}
-                        <div class="change-summary" id="changes-{{ case.cino }}" style="display: none;">
-                            <small class="text-warning">
-                                <strong>Recent Changes:</strong><br>
-                                {{ case.change_summary|replace('[', '')|replace(']', '')|replace("'", '')|replace('"', '') }}
-                            </small>
-                        </div>
-                        {% endif %}
-
-                        <!-- Notes Section - Always at bottom -->
-                        <div class="notes-section mt-auto">
-                            <label class="form-label small text-muted">Your Notes:</label>
-                            <textarea class="form-control notes-input" placeholder="Add your notes here..." oninput="markCaseModified('{{ case.cino }}')">{{ case.user_notes or '' }}</textarea>
-
-                            <!-- Action Buttons -->
-                            <div class="card-buttons">
-                                <button type="button" class="btn btn-success btn-sm" onclick="saveCase('{{ case.cino }}')">
-                                    <i class="fas fa-save"></i> Save
-                                </button> {% if case.is_changed %}
-                                <button type="button" class="btn btn-outline-info btn-sm" onclick="toggleChanges('{{ case.cino }}')">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button type="button" class="btn btn-outline-success btn-sm" onclick="markReviewed('{{ case.cino }}')">
-                                    <i class="fas fa-check"></i> Mark Reviewed
-                                </button> {% endif %}
-
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="openCaseDetail('{{ case.cino }}')">
-                                    <i class="fas fa-external-link-alt"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endfor %} {% if cases|length == 0 %}
-            <div class="col-12">
-                <div class="alert alert-info text-center">
-                    <i class="fas fa-folder-open fa-2x mb-3"></i>
-                    <h5>No Cases Found</h5>
-                    <p class="mb-0">Upload a myCases.txt file to start managing your cases.</p>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Changed Cases Tab -->
-    <div class="tab-pane fade" id="changed-cases">
-        <div class="row" id="changedCasesContainer">
-            {% for case in changed_cases %}
-            <div class="col-xl-4 col-lg-6">
-                <div class="card case-card h-100 border-warning" data-cino="{{ case.cino }}" data-changed="true">
-
-                    <div class="card-header bg-warning bg-opacity-10">
-                        <small class="text-warning fw-bold">
-                            <i class="fas fa-exclamation-triangle"></i> Case Updated
-                        </small>
-                    </div>
-
-                    <div class="card-body d-flex flex-column">
-                        <!-- Case Title - Fixed height -->
-                        <h6 class="card-title text-primary">{{ case.case_no or 'No Case Number' }}</h6>
-
-                        <!-- Case Parties - Fixed height -->
-                        <div class="case-parties">
-                            <div class="row">
-                                <div class="col-6">
-                                    <small class="text-muted">Petitioner:</small>
-                                    <div class="fw-medium">{{ case.petparty_name or 'Not Available' }}</div>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted">Respondent:</small>
-                                    <div class="fw-medium">{{ case.resparty_name or 'Not Available' }}</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Case Details - Fixed height with scroll -->
-                        <div class="case-details">
-                            <strong>Court:</strong> {{ case.establishment_name or 'N/A' }}<br>
-                            <strong>State:</strong> {{ case.state_name or 'N/A' }}<br>
-                            <strong>District:</strong> {{ case.district_name or 'N/A' }}<br>
-                            <strong>Next Date:</strong> {{ case.date_next_list or 'Not set' }}<br>
-                            <strong>Purpose:</strong> {{ case.purpose_name or 'N/A' }}<br>
-                            <strong>Type:</strong> {{ case.type_name or 'N/A' }}
-                        </div>
-
-                        <!-- Change Summary -->
-                        {% if case.change_summary %}
-                        <div class="change-summary" id="changes-{{ case.cino }}" style="display: none;">
-                            <small class="text-warning">
-                                <strong>Recent Changes:</strong><br>
-                                {{ case.change_summary|replace('[', '')|replace(']', '')|replace("'", '')|replace('"', '') }}
-                            </small>
-                        </div>
-                        {% endif %}
-
-                        <!-- Notes Section - Always at bottom -->
-                        <div class="notes-section mt-auto">
-                            <label class="form-label small text-muted">Your Notes:</label>
-                            <textarea class="form-control notes-input" placeholder="Add your notes here..." oninput="markCaseModified('{{ case.cino }}')">{{ case.user_notes or '' }}</textarea>
-
-                            <!-- Action Buttons -->
-                            <div class="card-buttons">
-                                <button type="button" class="btn btn-success btn-sm" onclick="saveCase('{{ case.cino }}')">
-                                    <i class="fas fa-save"></i> Save
-                                </button>
-                                <button type="button" class="btn btn-outline-info btn-sm" onclick="toggleChanges('{{ case.cino }}')">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button type="button" class="btn btn-outline-success btn-sm" onclick="markReviewed('{{ case.cino }}')">
-                                    <i class="fas fa-check"></i> Mark Reviewed
-                                </button>
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="openCaseDetail('{{ case.cino }}')">
-                                    <i class="fas fa-external-link-alt"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endfor %} {% if changed_cases|length == 0 %}
-            <div class="col-12">
-                <div class="alert alert-warning text-center">
-                    <i class="fas fa-check-circle fa-2x mb-3 text-success"></i>
-                    <h5>No Changed Cases</h5>
-                    <p class="mb-0">All cases are up to date. Great job!</p>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Reviewed & Ready Tab -->
-    <div class="tab-pane fade" id="reviewed-cases">
-        {% if reviewed_cases|length > 0 %}
-        <div class="row mb-3">
-            <div class="col-12">
-                <div class="alert alert-success d-flex justify-content-between align-items-center">
-                    <div>
-                        <i class="fas fa-check-circle me-2"></i>
-                        <strong>{{ reviewed_cases|length }} cases</strong> have been reviewed and are ready for calendar creation.
-                    </div>
-                    <a href="/reviewed_cases" class="btn btn-success btn-sm">
-                        <i class="fas fa-external-link-alt me-1"></i>View All Details
-                    </a>
-                </div>
-            </div>
-        </div>
-        <div class="row" id="reviewedCasesContainer">
-            {% for case in reviewed_cases[:12] %}
-            <div class="col-xl-4 col-lg-6">
-                <div class="card case-card h-100 border-success" data-cino="{{ case.cino }}" data-changed="false">
-                    <div class="card-header bg-success bg-opacity-10 text-success border-success">
-                        <small class="fw-bold">
-                            <i class="fas fa-check-circle me-1"></i>REVIEWED & READY
-                        </small>
-                    </div>
-                    <div class="card-body d-flex flex-column">
-                        <!-- Case Title - Fixed height -->
-                        <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6>
-
-                        <!-- Case Parties - Fixed height -->
-                        <div class="case-parties">
-                            <div class="row">
-                                <div class="col-6">
-                                    <small class="text-muted">Petitioner:</small>
-                                    <div class="fw-medium">{{ case.petparty_name or 'N/A' }}</div>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted">Respondent:</small>
-                                    <div class="fw-medium">{{ case.resparty_name or 'N/A' }}</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Case Details - Fixed height -->
-                        <div class="case-details">
-                            <strong>Next Date:</strong> {{ case.date_next_list or 'Not set' }}<br>
-                            <strong>Court:</strong> {{ case.establishment_name or 'N/A' }}<br>
-                            <strong>Purpose:</strong> {{ case.purpose_name or 'N/A' }}<br>
-                            <strong>Type:</strong> {{ case.type_name or 'N/A' }}
-                        </div>
-
-                        <!-- Notes Preview -->
-                        {% if case.user_notes %}
-                        <div class="notes-preview bg-light p-2 rounded small mb-3">
-                            <strong class="text-success">Notes Added:</strong><br>
-                            <span class="text-muted">{{ case.user_notes[:80] }}{% if case.user_notes|length > 80 %}...{% endif %}</span>
-                        </div>
-                        {% endif %}
-
-                        <!-- Action Buttons - At bottom -->
-                        <div class="mt-auto">
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-outline-primary btn-sm flex-fill" onclick="openCaseDetail('{{ case.cino }}')">
-                                    <i class="fas fa-edit me-1"></i>Edit Details
-                                </button>
-                                <button class="btn btn-success btn-sm" title="Already reviewed">
-                                    <i class="fas fa-check"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endfor %} {% if reviewed_cases|length > 12 %}
-            <div class="col-12 text-center">
-                <a href="/reviewed_cases" class="btn btn-outline-success">
-                    <i class="fas fa-plus me-2"></i>View All {{ reviewed_cases|length }} Reviewed Cases
-                </a>
-            </div>
-            {% endif %}
-        </div>
-        {% else %}
-        <div class="row">
-            <div class="col-12">
-                <div class="alert alert-info text-center">
-                    <i class="fas fa-clipboard-check fa-2x mb-3"></i>
-                    <h5>No Reviewed Cases Yet</h5>
-                    <p class="mb-3">Cases that have been reviewed and have notes added will appear here.</p>
-                    <div class="text-muted small">
-                        <strong>To get cases here:</strong><br> 1. Review cases in "Changed Cases" tab<br> 2. Add your notes to each case<br> 3. Save the cases<br> 4. They will appear in this tab ready for calendar creation
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- Advanced Search Modal -->
-<div class="modal fade" id="advancedSearchModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-info text-white">
-                <h5 class="modal-title">
-                    <i class="fas fa-search-plus me-2"></i>Advanced Search
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="row g-3">
-                    <!-- Case Information -->
-                    <div class="col-md-6">
-                        <h6>Case Information</h6>
-                        <div class="mb-3">
-                            <label class="form-label">Case Number</label>
-                            <input type="text" class="form-control" id="advCaseNo" placeholder="e.g., WP/2024/123">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">CINO</label>
-                            <input type="text" class="form-control" id="advCino" placeholder="Search by CINO">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Case Type</label>
-                            <select class="form-select" id="advCaseType">
-                                <option value="">All Types</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Parties -->
-                    <div class="col-md-6">
-                        <h6>Parties</h6>
-                        <div class="mb-3">
-                            <label class="form-label">Petitioner Name</label>
-                            <input type="text" class="form-control" id="advPetitioner" placeholder="e.g., Vaishali Uday Rawal">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Respondent Name</label>
-                            <input type="text" class="form-control" id="advRespondent" placeholder="e.g., Uday Mukund Rawal">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">vs Format Search</label>
-                            <input type="text" class="form-control" id="advVsFormat" placeholder="e.g., Vaishali vs Uday">
-                            <small class="text-muted">Search in "Name vs Name" format</small>
-                        </div>
-                    </div>
-
-                    <!-- Court Details -->
-                    <div class="col-md-6">
-                        <h6>Court Details</h6>
-                        <div class="mb-3">
-                            <label class="form-label">Establishment</label>
-                            <select class="form-select" id="advEstablishment">
-                                <option value="">All Courts</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">State</label>
-                            <select class="form-select" id="advState">
-                                <option value="">All States</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">District</label>
-                            <select class="form-select" id="advDistrict">
-                                <option value="">All Districts</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Dates and Status -->
-                    <div class="col-md-6">
-                        <h6>Dates & Status</h6>
-                        <div class="mb-3">
-                            <label class="form-label">Next Hearing Date Range</label>
-                            <div class="row">
-                                <div class="col-6">
-                                    <input type="date" class="form-control" id="advDateFrom" placeholder="From">
-                                </div>
-                                <div class="col-6">
-                                    <input type="date" class="form-control" id="advDateTo" placeholder="To">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Case Status</label>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="advChanged" value="changed">
-                                <label class="form-check-label" for="advChanged">
-                                    Recently Changed Cases
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="advWithNotes" value="notes">
-                                <label class="form-check-label" for="advWithNotes">
-                                    Cases with Notes
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="advReviewed" value="reviewed">
-                                <label class="form-check-label" for="advReviewed">
-                                    Reviewed Cases
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="clearAdvancedSearch()">
-                    Clear All
-                </button>
-                <button type="button" class="btn btn-outline-primary" onclick="saveSearchPreset()">
-                    Save Preset
-                </button>
-                <button type="button" class="btn btn-primary" onclick="applyAdvancedSearch()">
-                    Apply Search
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Enhanced Calendar Deletion Modal -->
-<div class="modal fade" id="deleteCalendarModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">
-                    <i class="fas fa-exclamation-triangle me-2"></i>Complete System Cleanup
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-danger">
-                    <i class="fas fa-warning me-2"></i>
-                    <strong>⚠️ COMPLETE SYSTEM CLEANUP</strong><br> This will permanently delete:
-                    <ul class="mt-2 mb-0">
-                        <li>🗓️ All court events from Google Calendar</li>
-                        <li>🗄️ All case data from local database</li>
-                        <li>📁 All local files (myCases.txt, Excel files, etc.)</li>
-                    </ul>
-                </div>
-
-                <!-- Cleanup Options -->
-                <div class="row mb-3">
-                    <div class="col-12">
-                        <h6>Choose cleanup option:</h6>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="radio" name="cleanupOption" id="completeCleanup" value="complete" checked>
-                            <label class="form-check-label" for="completeCleanup">
-                                <strong>Complete Cleanup</strong> - Calendar + Database + Files
-                            </label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="radio" name="cleanupOption" id="calendarOnly" value="calendar">
-                            <label class="form-check-label" for="calendarOnly">
-                                <strong>Calendar Only</strong> - Keep local data
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="cleanupOption" id="localOnly" value="local">
-                            <label class="form-check-label" for="localOnly">
-                                <strong>Local Data Only</strong> - Keep calendar events
-                            </label>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Preview Section -->
-                <div id="eventsPreview" style="display: none;">
-                    <h6>Events to be deleted:</h6>
-                    <div id="eventsList" class="border rounded p-3 mb-3" style="max-height: 300px; overflow-y: auto;">
-                    </div>
-                    <div class="text-muted small">
-                        <span id="previewCount">0</span> events found.
-                        <span id="totalEventsNote"></span>
-                    </div>
-                </div>
-
-                <!-- Cleanup Progress Section -->
-                <div id="cleanupProgress" style="display: none;">
-                    <h6>Cleanup Progress:</h6>
-
-                    <!-- Overall Progress -->
-                    <div class="progress mb-3">
-                        <div id="overallProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
-                    </div>
-
-                    <!-- Step Progress -->
-                    <div class="row mb-3">
-                        <div class="col-3 text-center">
-                            <div id="backupStep" class="cleanup-step">
-                                <i class="fas fa-save fa-2x mb-2"></i>
-                                <div class="small">Backup</div>
-                            </div>
-                        </div>
-                        <div class="col-3 text-center">
-                            <div id="calendarStep" class="cleanup-step">
-                                <i class="fas fa-calendar fa-2x mb-2"></i>
-                                <div class="small">Calendar</div>
-                            </div>
-                        </div>
-                        <div class="col-3 text-center">
-                            <div id="databaseStep" class="cleanup-step">
-                                <i class="fas fa-database fa-2x mb-2"></i>
-                                <div class="small">Database</div>
-                            </div>
-                        </div>
-                        <div class="col-3 text-center">
-                            <div id="filesStep" class="cleanup-step">
-                                <i class="fas fa-folder fa-2x mb-2"></i>
-                                <div class="small">Files</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Statistics -->
+                    <!-- Statistics Cards Row -->
                     <div class="row">
-                        <div class="col-4 text-center">
-                            <div class="h5 text-success mb-0" id="deletedCount">0</div>
-                            <small class="text-muted">Calendar Events</small>
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-primary shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Cases</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_cases }}</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-gavel fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-4 text-center">
-                            <div class="h5 text-info mb-0" id="databaseCount">0</div>
-                            <small class="text-muted">Database Records</small>
+
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-warning shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Recent Changes</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ changed_cases_count }}</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-4 text-center">
-                            <div class="h5 text-warning mb-0" id="filesCount">0</div>
-                            <small class="text-muted">Local Files</small>
+
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-success shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Reviewed Cases</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ reviewed_cases_count }}</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-info shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">My Cases</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ petitioner_cases_count + respondent_cases_count }}</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-user fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="text-center mt-3">
-                        <small class="text-muted" id="currentStepText">Preparing cleanup...</small>
+                    <!-- Search and Filters -->
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Search & Filter Cases</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <input type="text" class="form-control" id="searchInput" placeholder="Search cases, parties, or case numbers...">
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="date" class="form-control" id="dateFromInput" placeholder="From Date">
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="date" class="form-control" id="dateToInput" placeholder="To Date">
+                                </div>
+                                <div class="col-md-2">
+                                    <button class="btn btn-secondary w-100" onclick="clearAllFilters()">
+                                        <i class="fas fa-times"></i> Clear
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Quick Date Filters -->
+                            <div class="btn-group mb-3" role="group">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setDateFilter('today')">Today</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setDateFilter('thisWeek')">This Week</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setDateFilter('thisMonth')">This Month</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setDateFilter('nextWeek')">Next Week</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabs Navigation with Create Case Button -->
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+                        <ul class="nav nav-tabs" id="casesTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="all-cases-tab" data-bs-toggle="tab" data-bs-target="#all-cases">
+                                    All Cases <span class="badge bg-light text-dark">{{ total_cases }}</span>
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="changed-cases-tab" data-bs-toggle="tab" data-bs-target="#changed-cases">
+                                    Recent Changes <span class="badge bg-warning text-dark">{{ changed_cases_count }}</span>
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="petitioner-cases-tab" data-bs-toggle="tab" data-bs-target="#petitioner-cases">
+                                    <i class="fas fa-user-tie text-danger"></i> My Petitioner Cases 
+                                    <span class="badge bg-danger">{{ petitioner_cases_count }}</span>
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="respondent-cases-tab" data-bs-toggle="tab" data-bs-target="#respondent-cases">
+                                    <i class="fas fa-user-shield text-primary"></i> My Respondent Cases 
+                                    <span class="badge bg-primary">{{ respondent_cases_count }}</span>
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="reviewed-cases-tab" data-bs-toggle="tab" data-bs-target="#reviewed-cases">
+                                    <i class="fas fa-check-circle text-success"></i> Reviewed Cases 
+                                    <span class="badge bg-success">{{ reviewed_cases_count }}</span>
+                                </button>
+                            </li>
+                        </ul>
+
+                        <!-- Create New Case Button -->
+                        <div class="d-flex gap-2">
+                            <a href="{{ url_for('create_case') }}" class="btn btn-success">
+                                <i class="fas fa-plus"></i> Create New Case
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content" id="casesTabContent">
+                        <!-- All Cases Tab -->
+                        <div class="tab-pane fade show active" id="all-cases" role="tabpanel">
+                            <div class="row">
+                                {% for case in cases %} {% include 'case_card.html' %} {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Changed Cases Tab -->
+                        <div class="tab-pane fade" id="changed-cases" role="tabpanel">
+                            <div class="row">
+                                {% for case in changed_cases %} {% include 'case_card.html' %} {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Petitioner Cases Tab -->
+                        <div class="tab-pane fade" id="petitioner-cases" role="tabpanel">
+                            <div class="row">
+                                {% for case in cases %} {% if case.user_side == 'petitioner' %} {% include 'case_card.html' %} {% endif %} {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Respondent Cases Tab -->
+                        <div class="tab-pane fade" id="respondent-cases" role="tabpanel">
+                            <div class="row">
+                                {% for case in cases %} {% if case.user_side == 'respondent' %} {% include 'case_card.html' %} {% endif %} {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Reviewed Cases Tab -->
+                        <div class="tab-pane fade" id="reviewed-cases" role="tabpanel">
+                            <div class="row">
+                                {% for case in reviewed_cases %} {% include 'case_card.html' %} {% endfor %}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="cancelBtn">Cancel</button>
-                <button type="button" class="btn btn-outline-primary" onclick="previewCleanup()" id="previewBtn">
-                    <i class="fas fa-eye me-2"></i>Preview
-                </button>
-                <button type="button" class="btn btn-danger" onclick="confirmCleanup()" id="cleanupBtn" style="display: none;">
-                    <i class="fas fa-trash me-2"></i>Start Cleanup
-                </button>
-            </div>
         </div>
     </div>
-</div>
 
-<!-- Loading Modal -->
-<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-body text-center py-4">
-                <div class="spinner-border text-primary mb-3" role="status">
-                    <span class="visually-hidden">Loading...</span>
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center py-4">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mb-0">Processing...</p>
                 </div>
-                <p class="mb-0">Processing your request...</p>
             </div>
         </div>
     </div>
-</div>
-{% endblock %} {% block scripts %}
-<script>
-    // Check if already initialized to prevent duplicate declarations
-    if (typeof window.caseManagementInitialized === 'undefined') {
-        window.caseManagementInitialized = true;
 
-        // Global state management
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Custom JavaScript -->
+    <script>
+        // Global variables
         let pendingChanges = new Set();
         let alertTimeout;
-        let currentFilters = {
-            text: '',
-            dateFrom: '',
-            dateTo: '',
-            advanced: {}
-        };
-        let filteredCases = [];
-        let allCasesData = [];
 
         // Utility Functions
         function showAlert(message, type = 'info') {
@@ -770,32 +270,12 @@
         }
 
         // Case Management Functions
-        window.toggleChanges = function(cino) {
-            const changesDiv = document.getElementById(`changes-${cino}`);
-            const isVisible = changesDiv.style.display !== 'none';
-            changesDiv.style.display = isVisible ? 'none' : 'block';
-
-            const btn = event.target.closest('button');
-            const icon = btn.querySelector('i');
-            icon.className = isVisible ? 'fas fa-eye' : 'fas fa-eye-slash';
-        };
-
         window.markCaseModified = function(cino) {
             pendingChanges.add(cino);
             const card = document.querySelector(`[data-cino="${cino}"]`);
             if (card) {
                 card.classList.add('border-info');
-                let indicator = card.querySelector('.unsaved-indicator');
-                if (!indicator) {
-                    indicator = document.createElement('span');
-                    indicator.className = 'badge bg-info position-absolute top-0 end-0 translate-middle unsaved-indicator';
-                    indicator.textContent = 'Modified';
-                    indicator.style.zIndex = '10';
-                    card.style.position = 'relative';
-                    card.appendChild(indicator);
-                }
             }
-            updateSaveAllButton();
         };
 
         window.saveCase = function(cino) {
@@ -817,21 +297,13 @@
                 .then(response => response.json())
                 .then(data => {
                     hideLoading();
-                    showAlert('Case saved successfully', 'success');
-                    pendingChanges.delete(cino);
-                    card.classList.remove('border-info');
-
-                    const indicator = card.querySelector('.unsaved-indicator');
-                    if (indicator) indicator.remove();
-
-                    if (card.dataset.changed === 'true') {
-                        card.classList.remove('border-warning');
-                        card.dataset.changed = 'false';
-                        const header = card.querySelector('.card-header');
-                        if (header) header.remove();
-                        updateStatistics();
+                    if (data.error) {
+                        showAlert(data.error, 'danger');
+                    } else {
+                        showAlert('Case saved successfully', 'success');
+                        pendingChanges.delete(cino);
+                        card.classList.remove('border-info');
                     }
-                    updateSaveAllButton();
                 })
                 .catch(error => {
                     hideLoading();
@@ -840,6 +312,8 @@
         };
 
         window.markReviewed = function(cino) {
+            showLoading();
+
             fetch(`/case/${cino}/mark_reviewed`, {
                     method: 'POST',
                     headers: {
@@ -848,15 +322,16 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    showAlert('Case marked as reviewed', 'success');
-                    const card = document.querySelector(`[data-cino="${cino}"]`);
-                    card.classList.remove('border-warning');
-                    card.dataset.changed = 'false';
-                    const header = card.querySelector('.card-header');
-                    if (header) header.remove();
-                    updateStatistics();
+                    hideLoading();
+                    if (data.error) {
+                        showAlert(data.error, 'danger');
+                    } else {
+                        showAlert('Case marked as reviewed', 'success');
+                        setTimeout(() => location.reload(), 1000);
+                    }
                 })
                 .catch(error => {
+                    hideLoading();
                     showAlert('Failed to mark as reviewed: ' + error.message, 'danger');
                 });
         };
@@ -865,351 +340,119 @@
             window.location.href = `/case/${cino}`;
         };
 
-        function updateSaveAllButton() {
-            const saveAllBtn = document.querySelector('[onclick="saveAllCases()"]');
-            if (saveAllBtn) {
-                const count = pendingChanges.size;
-                if (count > 0) {
-                    saveAllBtn.innerHTML = `Save All (${count})`;
-                    saveAllBtn.classList.add('btn-warning');
-                    saveAllBtn.classList.remove('btn-light');
-                } else {
-                    saveAllBtn.innerHTML = 'Save All';
-                    saveAllBtn.classList.remove('btn-warning');
-                    saveAllBtn.classList.add('btn-light');
-                }
-            }
-        }
+        // User Side Management Functions
+        window.setUserSide = function(cino, userSide) {
+            fetch(`/case/${cino}/update`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        notes: '',
+                        updates: {
+                            user_side: userSide
+                        }
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showAlert(data.error, 'danger');
+                    } else {
+                        showAlert('User side updated!', 'success');
+                        setTimeout(() => location.reload(), 1000);
+                    }
+                })
+                .catch(error => {
+                    showAlert('Failed to update user side: ' + error.message, 'danger');
+                });
+        };
 
-        function updateStatistics() {
-            const changedCases = document.querySelectorAll('.case-card[data-changed="true"]').length;
-            const totalCases = document.querySelectorAll('.case-card').length;
-            const reviewedCases = totalCases - changedCases;
-
-            const changedBadge = document.querySelector('#casesTabs .nav-link[href="#changed-cases"] .badge');
-            if (changedBadge) changedBadge.textContent = changedCases;
-
-            const reviewedCount = document.querySelector('#reviewedCount');
-            if (reviewedCount) reviewedCount.textContent = reviewedCases;
-
-            const warningCount = document.querySelector('.bg-warning h3');
-            if (warningCount) warningCount.textContent = changedCases;
-        }
-
-        // Enhanced Search Functionality
-        function initializeSearch() {
-            console.log('Initializing search...');
-            allCasesData = [];
-
-            // Get cases from ALL tabs, not just the active one
-            const allTabs = ['#all-cases', '#changed-cases', '#reviewed-cases'];
-
-            allTabs.forEach(tabId => {
-                const tabContent = document.querySelector(tabId);
-                if (tabContent) {
-                    const cards = tabContent.querySelectorAll('.case-card');
-                    cards.forEach(card => {
-                        const container = card.closest('.col-xl-4, .col-lg-6');
-                        const titleElement = card.querySelector('.card-title');
-                        const petitionerElement = card.querySelector('.case-parties .col-6:first-child .fw-medium');
-                        const respondentElement = card.querySelector('.case-parties .col-6:last-child .fw-medium');
-                        const detailsElement = card.querySelector('.case-details');
-                        const notesElement = card.querySelector('.notes-input');
-
-                        allCasesData.push({
-                            element: container,
-                            cino: card.dataset.cino,
-                            caseNo: titleElement ? titleElement.textContent || '' : '',
-                            petitioner: petitionerElement ? petitionerElement.textContent || '' : '',
-                            respondent: respondentElement ? respondentElement.textContent || '' : '',
-                            establishment: detailsElement ? detailsElement.textContent || '' : '',
-                            nextDate: extractDate(container) || '',
-                            isChanged: card.dataset.changed === 'true',
-                            hasNotes: notesElement ? (notesElement.value.trim() !== '') : false,
-                            tabId: tabId
-                        });
-                    });
-                }
-            });
-
-            console.log('Initialized search with', allCasesData.length, 'cases across all tabs');
-        }
-
-        function extractDate(container) {
-            if (!container) return '';
-            const caseDetails = container.querySelector('.case-details');
-            if (!caseDetails) return '';
-
-            const text = caseDetails.textContent;
-            // Look for date patterns in the text
-            const datePatterns = [
-                /Next Date:\s*([^\n]+)/i,
-                /date_next_list:\s*([^\n]+)/i,
-                /(\d{4}-\d{2}-\d{2})/,
-                /(\d{1,2}\/\d{1,2}\/\d{4})/
-            ];
-
-            for (const pattern of datePatterns) {
-                const match = text.match(pattern);
-                if (match && match[1] && match[1] !== 'Not set') {
-                    return match[1].trim();
-                }
-            }
-            return '';
-        }
-
+        // Search and Filter Functions
         function handleSearch() {
-            console.log('Handling search...');
-            const searchInputElement = document.getElementById('searchInput');
-            const dateFromElement = document.getElementById('dateFromInput');
-            const dateToElement = document.getElementById('dateToInput');
+            const searchText = document.getElementById('searchInput').value.toLowerCase();
+            const dateFrom = document.getElementById('dateFromInput').value;
+            const dateTo = document.getElementById('dateToInput').value;
 
-            const searchText = searchInputElement ? (searchInputElement.value || '') : '';
-            const dateFrom = dateFromElement ? (dateFromElement.value || '') : '';
-            const dateTo = dateToElement ? (dateToElement.value || '') : '';
-
-            console.log('Search params:', {
-                searchText,
-                dateFrom,
-                dateTo
-            });
-
-            currentFilters = {
-                text: searchText,
-                dateFrom: dateFrom,
-                dateTo: dateTo,
-                advanced: currentFilters.advanced || {}
-            };
-
-            filterCases();
-        }
-
-        function filterCases() {
+            // Get all case cards from the active tab
+            const activeTab = document.querySelector('.tab-pane.active');
+            const allCards = activeTab.querySelectorAll('.case-card');
             let visibleCount = 0;
-            console.log('Filtering cases with filters:', currentFilters);
 
-            // Clear any existing no-results messages
-            document.querySelectorAll('#noResultsMessage').forEach(msg => msg.remove());
-
-            allCasesData.forEach((caseData, index) => {
+            allCards.forEach(card => {
                 let matches = true;
 
                 // Text search
-                if (currentFilters.text) {
-                    matches = matches && matchesTextSearch(caseData, currentFilters.text);
+                if (searchText) {
+                    const cardText = card.textContent.toLowerCase();
+                    matches = matches && cardText.includes(searchText);
                 }
 
                 // Date range filter
-                if (currentFilters.dateFrom || currentFilters.dateTo) {
-                    const dateMatches = matchesDateRange(caseData, currentFilters.dateFrom, currentFilters.dateTo);
-                    matches = matches && dateMatches;
+                if (dateFrom || dateTo) {
+                    const hearingDateElement = card.querySelector('.case-details');
+                    if (hearingDateElement) {
+                        const hearingText = hearingDateElement.textContent;
+                        const dateMatch = hearingText.match(/(\d{4}-\d{2}-\d{2})/);
+
+                        if (dateMatch) {
+                            const hearingDate = new Date(dateMatch[1]);
+
+                            if (dateFrom) {
+                                const fromDate = new Date(dateFrom);
+                                if (hearingDate < fromDate) matches = false;
+                            }
+
+                            if (dateTo) {
+                                const toDate = new Date(dateTo);
+                                if (hearingDate > toDate) matches = false;
+                            }
+                        } else if (dateFrom || dateTo) {
+                            matches = false; // No valid date found
+                        }
+                    }
                 }
 
-                // Advanced filters
-                if (Object.keys(currentFilters.advanced).length > 0) {
-                    matches = matches && matchesAdvancedFilters(caseData, currentFilters.advanced);
-                }
-
-                // Show/hide the case with CSS class approach (more reliable)
-                if (caseData.element) {
+                // Show/hide card
+                const cardContainer = card.closest('.col-xl-4, .col-lg-6');
+                if (cardContainer) {
                     if (matches) {
-                        // Show the element
-                        caseData.element.classList.remove('search-hidden');
-                        caseData.element.classList.add('search-visible');
-                        caseData.element.style.setProperty('display', 'flex', 'important');
+                        cardContainer.style.display = '';
                         visibleCount++;
-
-                        // Debug: Show which cases are being displayed
-                        if (visibleCount <= 5) {
-                            console.log(`Showing case ${visibleCount}:`, {
-                                caseNo: caseData.caseNo,
-                                nextDate: caseData.nextDate,
-                                tab: caseData.tabId,
-                                elementVisible: caseData.element.offsetHeight > 0
-                            });
-                        }
                     } else {
-                        // Hide the element
-                        caseData.element.classList.remove('search-visible');
-                        caseData.element.classList.add('search-hidden');
-                        caseData.element.style.setProperty('display', 'none', 'important');
+                        cardContainer.style.display = 'none';
                     }
                 }
             });
 
-            console.log('Total visible cases:', visibleCount);
-            updateSearchResultsCount(visibleCount);
-
-            // Show no results message in active tab if no matches
-            if (visibleCount === 0) {
-                showNoResultsMessage(true);
-            }
-
-            // Debug: Check the current active tab
-            const activeTab = document.querySelector('.tab-pane.active');
-            const activeTabId = activeTab ? activeTab.id : 'no active tab';
-            const visibleElementsInActiveTab = activeTab ?
-                activeTab.querySelectorAll('.col-xl-4:not(.search-hidden), .col-lg-6:not(.search-hidden)').length : 0;
-
-            console.log('Active tab:', activeTabId, 'visible elements in active tab:', visibleElementsInActiveTab);
+            // Show no results message if needed
+            showNoResultsMessage(visibleCount === 0 && (searchText || dateFrom || dateTo));
         }
 
-        function matchesTextSearch(caseData, searchText) {
-            const term = searchText.toLowerCase().trim();
+        function showNoResultsMessage(show) {
+            // Remove existing messages
+            document.querySelectorAll('#noResultsMessage').forEach(msg => msg.remove());
 
-            const directMatches = [
-                caseData.caseNo.toLowerCase(),
-                caseData.petitioner.toLowerCase(),
-                caseData.respondent.toLowerCase(),
-                caseData.establishment.toLowerCase()
-            ].some(field => field.includes(term));
-
-            if (directMatches) return true;
-
-            if (term.includes(' vs ') || term.includes(' v ') || term.includes(' v. ')) {
-                const vsVariations = [' vs ', ' v ', ' v. ', ' versus '];
-                let petitionerPart = '';
-                let respondentPart = '';
-
-                for (const vsFormat of vsVariations) {
-                    if (term.includes(vsFormat)) {
-                        const parts = term.split(vsFormat);
-                        if (parts.length === 2) {
-                            petitionerPart = parts[0].trim();
-                            respondentPart = parts[1].trim();
-                            break;
-                        }
-                    }
+            if (show) {
+                const activeTab = document.querySelector('.tab-pane.active .row');
+                if (activeTab) {
+                    const noResultsMsg = document.createElement('div');
+                    noResultsMsg.id = 'noResultsMessage';
+                    noResultsMsg.className = 'col-12 text-center py-5';
+                    noResultsMsg.innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="fas fa-search fa-2x mb-3"></i>
+                            <h5>No Cases Found</h5>
+                            <p class="mb-0">Try adjusting your search criteria or clearing filters.</p>
+                        </div>
+                    `;
+                    activeTab.appendChild(noResultsMsg);
                 }
-
-                if (petitionerPart && respondentPart) {
-                    const petitionerMatch = caseData.petitioner.toLowerCase().includes(petitionerPart);
-                    const respondentMatch = caseData.respondent.toLowerCase().includes(respondentPart);
-                    if (petitionerMatch && respondentMatch) return true;
-                }
-            }
-
-            const searchWords = term.split(' ').filter(word => word.length > 2);
-            if (searchWords.length >= 2) {
-                const petitionerWords = caseData.petitioner.toLowerCase().split(' ');
-                const respondentWords = caseData.respondent.toLowerCase().split(' ');
-
-                const allWordsInPetitioner = searchWords.every(word =>
-                    petitionerWords.some(pWord => pWord.includes(word))
-                );
-                const allWordsInRespondent = searchWords.every(word =>
-                    respondentWords.some(rWord => rWord.includes(word))
-                );
-
-                if (allWordsInPetitioner || allWordsInRespondent) return true;
-            }
-
-            return false;
-        }
-
-        function matchesDateRange(caseData, dateFrom, dateTo) {
-            if (!caseData.nextDate || caseData.nextDate === 'Not set' || caseData.nextDate === 'Not Available') {
-                return !dateFrom && !dateTo;
-            }
-
-            try {
-                let caseDate;
-                const dateStr = caseData.nextDate.trim();
-
-                // Enhanced date parsing for YYYY-MM-DD format (which your data uses)
-                const formats = [{
-                    regex: /(\d{4}-\d{2}-\d{2})/,
-                    parse: (match) => new Date(match[1])
-                }, {
-                    regex: /(\d{1,2})\/(\d{1,2})\/(\d{4})/,
-                    parse: (match) => new Date(match[3], match[2] - 1, match[1])
-                }, {
-                    regex: /(\d{1,2})-(\d{1,2})-(\d{4})/,
-                    parse: (match) => new Date(match[3], match[2] - 1, match[1])
-                }];
-
-                // Try each format
-                for (const format of formats) {
-                    const match = dateStr.match(format.regex);
-                    if (match) {
-                        caseDate = format.parse(match);
-                        break;
-                    }
-                }
-
-                if (!caseDate || isNaN(caseDate.getTime())) {
-                    return !dateFrom && !dateTo;
-                }
-
-                // Normalize dates for comparison (remove time part)
-                const caseDateOnly = new Date(caseDate.getFullYear(), caseDate.getMonth(), caseDate.getDate());
-
-                if (dateFrom) {
-                    const fromDate = new Date(dateFrom);
-                    const fromDateOnly = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate());
-                    if (caseDateOnly < fromDateOnly) {
-                        return false;
-                    }
-                }
-
-                if (dateTo) {
-                    const toDate = new Date(dateTo);
-                    const toDateOnly = new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate());
-                    if (caseDateOnly > toDateOnly) {
-                        return false;
-                    }
-                }
-
-                return true;
-            } catch (error) {
-                console.error('Date parsing error:', error, 'for date:', caseData.nextDate);
-                return !dateFrom && !dateTo;
             }
         }
 
-        function matchesAdvancedFilters(caseData, advancedFilters) {
-            if (advancedFilters.caseNo && !caseData.caseNo.toLowerCase().includes(advancedFilters.caseNo.toLowerCase())) {
-                return false;
-            }
-            if (advancedFilters.petitioner && !caseData.petitioner.toLowerCase().includes(advancedFilters.petitioner.toLowerCase())) {
-                return false;
-            }
-            if (advancedFilters.respondent && !caseData.respondent.toLowerCase().includes(advancedFilters.respondent.toLowerCase())) {
-                return false;
-            }
-            if (advancedFilters.changed && !caseData.isChanged) {
-                return false;
-            }
-            if (advancedFilters.withNotes && !caseData.hasNotes) {
-                return false;
-            }
-            return true;
-        }
-
-        // Add this function temporarily for testing
-        window.forceRefreshDisplay = function() {
-            console.log('Force refreshing display...');
-
-            // Method 1: Force layout recalculation
-            document.body.style.display = 'none';
-            document.body.offsetHeight; // Trigger reflow
-            document.body.style.display = '';
-
-            // Method 2: Toggle a class on the container
-            const containers = document.querySelectorAll('#all-cases .row, #changed-cases .row, #reviewed-cases .row');
-            containers.forEach(container => {
-                container.classList.add('force-refresh');
-                setTimeout(() => container.classList.remove('force-refresh'), 50);
-            });
-
-            console.log('Display refresh complete');
-        };
-
-
-        // Quick date filter functions - Fixed button state management
-        // Enhanced date filter functions with proper button state management
+        // Date filter functions
         window.setDateFilter = function(period) {
-            console.log('Setting date filter:', period);
             const today = new Date();
             const dateFromInput = document.getElementById('dateFromInput');
             const dateToInput = document.getElementById('dateToInput');
@@ -1241,188 +484,38 @@
                     break;
             }
 
-            if (dateFromInput) dateFromInput.value = fromDate;
-            if (dateToInput) dateToInput.value = toDate;
+            dateFromInput.value = fromDate;
+            dateToInput.value = toDate;
 
-            // Clear all active buttons first
-            document.querySelectorAll('.btn-group .btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-
-            // Set current button as active - find the button that was clicked
-            if (event && event.target) {
-                event.target.classList.add('active');
-            } else {
-                // Fallback: find button by period
-                const buttonMap = {
-                    'today': 'Today',
-                    'thisWeek': 'This Week',
-                    'thisMonth': 'This Month',
-                    'nextWeek': 'Next Week'
-                };
-                const buttonText = buttonMap[period];
-                const button = Array.from(document.querySelectorAll('.btn-group .btn')).find(btn =>
-                    btn.textContent.trim() === buttonText
-                );
-                if (button) {
-                    button.classList.add('active');
-                }
-            }
+            // Clear active buttons and set current one
+            document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
 
             handleSearch();
-        };
-
-        window.clearDateFilter = function() {
-            // Clear input values
-            const dateFromInput = document.getElementById('dateFromInput');
-            const dateToInput = document.getElementById('dateToInput');
-
-            if (dateFromInput) dateFromInput.value = '';
-            if (dateToInput) dateToInput.value = '';
-
-            // Clear all active button states
-            document.querySelectorAll('.btn-group .btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-
-            // Clear all filters (not just dates)
-            currentFilters = {
-                text: '',
-                dateFrom: '',
-                dateTo: '',
-                advanced: {}
-            };
-
-            // Clear search input as well
-            const searchInput = document.getElementById('searchInput');
-            if (searchInput) {
-                searchInput.value = '';
-            }
-
-            // Re-run search to show all cases
-            handleSearch();
-
-            showAlert('All filters cleared', 'info');
-        };
-
-        function updateSearchResultsCount(count) {
-            const countElement = document.getElementById('searchResultsCount');
-            if (countElement) {
-                countElement.textContent = count;
-                countElement.className = count > 0 ? 'badge bg-primary' : 'badge bg-warning';
-            }
-        }
-
-        function showNoResultsMessage(show) {
-            // Remove existing messages
-            document.querySelectorAll('#noResultsMessage').forEach(msg => msg.remove());
-
-            if (show) {
-                const noResultsMsg = document.createElement('div');
-                noResultsMsg.id = 'noResultsMessage';
-                noResultsMsg.className = 'col-12 text-center py-5';
-                noResultsMsg.innerHTML = `
-                    <div class="alert alert-warning">
-                        <i class="fas fa-search fa-2x mb-3"></i>
-                        <h5>No Cases Found</h5>
-                        <p class="mb-0">Try adjusting your search criteria or clearing filters.</p>
-                    </div>
-                `;
-
-                // Add to current active tab
-                const activeTab = document.querySelector('.tab-pane.active .row');
-                if (activeTab) {
-                    activeTab.appendChild(noResultsMsg);
-                }
-            }
-        }
-
-        // Advanced Search Functions
-        window.showAdvancedSearch = function() {
-            const modal = new bootstrap.Modal(document.getElementById('advancedSearchModal'));
-            modal.show();
-        };
-
-        window.applyAdvancedSearch = function() {
-            const caseNoElement = document.getElementById('advCaseNo');
-            const cinoElement = document.getElementById('advCino');
-            const petitionerElement = document.getElementById('advPetitioner');
-            const respondentElement = document.getElementById('advRespondent');
-            const changedElement = document.getElementById('advChanged');
-            const withNotesElement = document.getElementById('advWithNotes');
-            const reviewedElement = document.getElementById('advReviewed');
-
-            const advancedFilters = {
-                caseNo: caseNoElement ? (caseNoElement.value || '') : '',
-                cino: cinoElement ? (cinoElement.value || '') : '',
-                petitioner: petitionerElement ? (petitionerElement.value || '') : '',
-                respondent: respondentElement ? (respondentElement.value || '') : '',
-                changed: changedElement ? (changedElement.checked || false) : false,
-                withNotes: withNotesElement ? (withNotesElement.checked || false) : false,
-                reviewed: reviewedElement ? (reviewedElement.checked || false) : false
-            };
-
-            currentFilters.advanced = advancedFilters;
-            filterCases();
-
-            const modal = bootstrap.Modal.getInstance(document.getElementById('advancedSearchModal'));
-            if (modal) modal.hide();
-
-            showAlert('Advanced filters applied', 'info');
-        };
-
-        window.clearAdvancedSearch = function() {
-            document.querySelectorAll('#advancedSearchModal input, #advancedSearchModal select').forEach(input => {
-                if (input.type === 'checkbox') {
-                    input.checked = false;
-                } else {
-                    input.value = '';
-                }
-            });
         };
 
         window.clearAllFilters = function() {
-            console.log('Clearing all filters...');
+            document.getElementById('searchInput').value = '';
+            document.getElementById('dateFromInput').value = '';
+            document.getElementById('dateToInput').value = '';
 
-            // Clear search input
-            const searchInput = document.getElementById('searchInput');
-            if (searchInput) searchInput.value = '';
+            document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
 
-            // Clear date inputs
-            const dateFromInput = document.getElementById('dateFromInput');
-            const dateToInput = document.getElementById('dateToInput');
-            if (dateFromInput) dateFromInput.value = '';
-            if (dateToInput) dateToInput.value = '';
-
-            // Clear all active button states
-            document.querySelectorAll('.btn-group .btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-
-            // Reset filter state
-            currentFilters = {
-                text: '',
-                dateFrom: '',
-                dateTo: '',
-                advanced: {}
-            };
-
-            // Clear advanced search modal if it exists
-            document.querySelectorAll('#advancedSearchModal input, #advancedSearchModal select').forEach(input => {
-                if (input.type === 'checkbox') {
-                    input.checked = false;
-                } else {
-                    input.value = '';
+            // Show all cards
+            document.querySelectorAll('.case-card').forEach(card => {
+                const cardContainer = card.closest('.col-xl-4, .col-lg-6');
+                if (cardContainer) {
+                    cardContainer.style.display = '';
                 }
             });
 
-            // Re-run search to show all cases
-            filterCases();
+            // Remove no results message
+            document.querySelectorAll('#noResultsMessage').forEach(msg => msg.remove());
 
             showAlert('All filters cleared', 'success');
         };
 
-        // Calendar Functions (keeping existing ones)
+        // Calendar Functions
         window.createCalendarEvents = function() {
             showLoading();
 
@@ -1447,126 +540,7 @@
                 });
         };
 
-        // Other functions (showDeleteCalendarModal, previewCleanup, etc.) - keeping existing implementations
-        window.showDeleteCalendarModal = function() {
-            const modal = new bootstrap.Modal(document.getElementById('deleteCalendarModal'));
-            modal.show();
-        };
-
-        window.previewCleanup = function() {
-            const selectedOption = document.querySelector('input[name="cleanupOption"]:checked').value;
-            const previewBtn = document.getElementById('previewBtn');
-            const cleanupBtn = document.getElementById('cleanupBtn');
-
-            previewBtn.disabled = true;
-            previewBtn.innerHTML = 'Loading...';
-
-            if (selectedOption === 'complete' || selectedOption === 'calendar') {
-                fetch('/calendar_events_preview')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.error) {
-                            showAlert(data.error, 'danger');
-                            return;
-                        }
-
-                        displayEventsPreview(data.events, data.total_count);
-                        document.getElementById('eventsPreview').style.display = 'block';
-                    })
-                    .catch(error => {
-                        showAlert('Failed to preview events: ' + error.message, 'danger');
-                    })
-                    .finally(() => {
-                        previewBtn.disabled = false;
-                        previewBtn.innerHTML = 'Preview';
-                        previewBtn.style.display = 'none';
-                        cleanupBtn.style.display = 'inline-block';
-                    });
-            } else {
-                previewBtn.disabled = false;
-                previewBtn.innerHTML = 'Preview';
-                previewBtn.style.display = 'none';
-                cleanupBtn.style.display = 'inline-block';
-            }
-        };
-
-        function displayEventsPreview(events, totalCount) {
-            const eventsList = document.getElementById('eventsList');
-            const previewCount = document.getElementById('previewCount');
-
-            previewCount.textContent = totalCount;
-
-            if (events.length === 0) {
-                eventsList.innerHTML = '<div class="text-muted">No court events found to delete.</div>';
-            } else {
-                eventsList.innerHTML = events.map(event => `
-                    <div class="border-bottom py-2">
-                        <strong>${event.summary}</strong><br>
-                        <small class="text-muted">${event.start} - ${event.description}</small>
-                    </div>
-                `).join('');
-            }
-        }
-
-        window.confirmCleanup = function() {
-            const selectedOption = document.querySelector('input[name="cleanupOption"]:checked').value;
-
-            if (!confirm('Are you sure you want to proceed with the cleanup? This action cannot be undone!')) {
-                return;
-            }
-
-            document.getElementById('eventsPreview').style.display = 'none';
-            document.getElementById('cleanupProgress').style.display = 'block';
-            document.getElementById('cleanupBtn').style.display = 'none';
-
-            executeCleanup(selectedOption);
-        };
-
-        function executeCleanup(option) {
-            let endpoint;
-            let requestBody = {};
-
-            switch (option) {
-                case 'complete':
-                    endpoint = '/complete_system_cleanup';
-                    break;
-                case 'calendar':
-                    endpoint = '/delete_calendar_events';
-                    requestBody = {
-                        method: 'auto'
-                    };
-                    break;
-                case 'local':
-                    endpoint = '/clear_local_data';
-                    break;
-            }
-
-            fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(requestBody)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        showAlert(data.error, 'danger');
-                        return;
-                    }
-
-                    showAlert(data.detailed_message || data.message, 'success');
-                    setTimeout(() => location.reload(), 3000);
-                })
-                .catch(error => {
-                    showAlert('Cleanup failed: ' + error.message, 'danger');
-                });
-        }
-
-        window.exportFilteredCases = function() {
-            showAlert('Export feature coming soon!', 'info');
-        };
-
+        // File Upload
         function uploadFile(file) {
             const formData = new FormData();
             formData.append('file', file);
@@ -1583,8 +557,7 @@
                     if (data.error) {
                         showAlert(data.error, 'danger');
                     } else {
-                        const statsText = `File processed: ${data.stats.new} new, ${data.stats.updated} updated, ${data.stats.unchanged} unchanged cases`;
-                        showAlert(statsText, 'success');
+                        showAlert(`File processed: ${data.stats.new} new, ${data.stats.updated} updated cases`, 'success');
                         setTimeout(() => location.reload(), 1500);
                     }
                 })
@@ -1594,69 +567,8 @@
                 });
         }
 
-        window.saveAllCases = function() {
-            const updates = [];
-
-            document.querySelectorAll('.case-card[data-changed="true"]').forEach(card => {
-                const cino = card.dataset.cino;
-                const notesInput = card.querySelector('.notes-input');
-                const notes = notesInput ? notesInput.value : '';
-                updates.push({
-                    cino: cino,
-                    notes: notes
-                });
-            });
-
-            document.querySelectorAll('.case-card.border-info').forEach(card => {
-                const cino = card.dataset.cino;
-                const notesInput = card.querySelector('.notes-input');
-                const notes = notesInput ? notesInput.value : '';
-
-                const existingUpdate = updates.find(u => u.cino === cino);
-                if (!existingUpdate) {
-                    updates.push({
-                        cino: cino,
-                        notes: notes
-                    });
-                }
-            });
-
-            if (updates.length === 0) {
-                showAlert('No changes to save', 'info');
-                return;
-            }
-
-            showLoading();
-
-            fetch('/save_all', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        updates: updates
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    hideLoading();
-                    showAlert(data.message, 'success');
-                    setTimeout(() => location.reload(), 1500);
-                })
-                .catch(error => {
-                    hideLoading();
-                    showAlert('Save failed: ' + error.message, 'danger');
-                });
-        };
-
-        window.saveSearchPreset = function() {
-            showAlert('Save search preset feature coming soon!', 'info');
-        };
-
-        // Initialize everything when DOM is loaded
+        // Initialize when DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM Content Loaded - Initializing...');
-
             // File upload
             const fileInput = document.getElementById('fileInput');
             if (fileInput) {
@@ -1668,33 +580,30 @@
                 });
             }
 
-            // Initialize search functionality with delay to ensure all tabs are loaded
-            setTimeout(() => {
-                initializeSearch();
+            // Search event listeners
+            const searchInput = document.getElementById('searchInput');
+            const dateFromInput = document.getElementById('dateFromInput');
+            const dateToInput = document.getElementById('dateToInput');
 
-                // Set up search event listeners
-                const searchInput = document.getElementById('searchInput');
-                const dateFromInput = document.getElementById('dateFromInput');
-                const dateToInput = document.getElementById('dateToInput');
+            if (searchInput) {
+                searchInput.addEventListener('input', handleSearch);
+            }
+            if (dateFromInput) {
+                dateFromInput.addEventListener('change', handleSearch);
+            }
+            if (dateToInput) {
+                dateToInput.addEventListener('change', handleSearch);
+            }
 
-                if (searchInput) {
-                    searchInput.addEventListener('input', handleSearch);
-                    console.log('Search input listener added');
-                }
-                if (dateFromInput) {
-                    dateFromInput.addEventListener('change', handleSearch);
-                    console.log('Date from input listener added');
-                }
-                if (dateToInput) {
-                    dateToInput.addEventListener('change', handleSearch);
-                    console.log('Date to input listener added');
-                }
-
-                // Initial search to set correct counts
-                handleSearch();
-                console.log('Initial search completed');
-            }, 1000); // Increased delay to ensure all tabs are fully loaded
+            // Tab change event listeners
+            document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
+                tab.addEventListener('shown.bs.tab', function() {
+                    // Clear search when switching tabs
+                    clearAllFilters();
+                });
+            });
         });
-    }
-</script>
-{% endblock %}
+    </script>
+</body>
+
+</html>

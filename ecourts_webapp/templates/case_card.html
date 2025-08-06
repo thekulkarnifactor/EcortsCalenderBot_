@@ -1,77 +1,150 @@
-<div class="col-xl-4 col-lg-6 mb-4">
-    <div class="card case-card h-100 {{ 'border-warning' if case.is_changed else 'border-light' }}" data-cino="{{ case.cino }}" data-changed="{{ case.is_changed|lower }}">
+<!-- Case Card with Database-Driven User Side Visual Indicators -->
+<div class="col-xl-4 col-lg-6 mb-3">
+    <div class="card case-card h-100 border-{{ 'warning' if case.is_changed else 'light' }} 
+                {{ 'user-side-petitioner' if case.user_side == 'petitioner' else 
+                   'user-side-respondent' if case.user_side == 'respondent' else '' }}" data-cino="{{ case.cino }}" data-changed="{{ case.is_changed|lower }}">
 
-        {% if case.is_changed %}
-        <div class="card-header bg-warning bg-opacity-10 border-warning">
+        <!-- Card Header with Database-Driven Blue/Red Color Coding -->
+        <div class="card-header 
+                    {% if case.user_side == 'petitioner' %}
+                        bg-danger text-white
+                    {% elif case.user_side == 'respondent' %}
+                        bg-primary text-white
+                    {% elif case.is_changed %}
+                        bg-warning text-dark
+                    {% else %}
+                        bg-light text-dark
+                    {% endif %}">
             <div class="d-flex justify-content-between align-items-center">
-                <small class="text-warning fw-bold">
-                    <i class="fas fa-exclamation-circle me-1"></i>CHANGED
+                <small>
+                    <i class="fas fa-gavel"></i> 
+                    {{ 'Recent Changes' if case.is_changed else 'Case Details' }}
                 </small>
-                <button class="btn btn-sm btn-outline-warning" onclick="toggleChanges('{{ case.cino }}')">
-                    <i class="fas fa-eye"></i>
-                </button>
+
+                <!-- User Side Badge from Database -->
+                {% if case.user_side == 'petitioner' %}
+                <span class="badge bg-light text-danger fw-bold">
+                    <i class="fas fa-user-tie"></i> PETITIONER
+                </span> {% elif case.user_side == 'respondent' %}
+                <span class="badge bg-light text-primary fw-bold">
+                    <i class="fas fa-user-shield"></i> RESPONDENT
+                </span> {% else %}
+                <span class="badge bg-secondary text-white">
+                    <i class="fas fa-question"></i> Not Set
+                </span> {% endif %}
             </div>
         </div>
-        {% endif %}
 
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
-                <h6 class="card-title mb-0">{{ case.case_no or 'N/A' }}</h6>
-                <small class="text-muted">{{ case.type_name or 'N/A' }}</small>
-            </div>
+        <div class="card-body d-flex flex-column">
+            <!-- Case Title -->
+            <h6 class="card-title text-primary">{{ case.case_no }}</h6>
 
+            <!-- Parties Section with Blue/Red Color Coding Based on Database -->
             <div class="case-parties mb-3">
-                <div class="row">
+                <div class="row g-2">
                     <div class="col-6">
-                        <small class="text-muted d-block">Petitioner</small>
-                        <div class="fw-medium small">{{ case.petparty_name or 'N/A' }}</div>
+                        <!-- Petitioner Box - RED if user_side = 'petitioner' -->
+                        <div class="party-petitioner p-2 rounded border
+                                    {{ 'border-danger bg-danger-subtle fw-bold' if case.user_side == 'petitioner' else '' }}" {% if case.user_side=='petitioner' %} style="border: 3px solid #dc3545 !important; 
+                                       background-color: rgba(220, 53, 69, 0.15) !important; 
+                                       box-shadow: 0 0 10px rgba(220, 53, 69, 0.3);
+                                       font-weight: bold !important;" {% else %} style="border: 1px solid #dee2e6;" {% endif %}>
+                            <small class="text-muted d-block">
+                                <i class="fas fa-user-tie {{ 'text-danger' if case.user_side == 'petitioner' else '' }}"></i> 
+                                Petitioner:
+                            </small>
+                            <div class="{{ 'text-danger fw-bold' if case.user_side == 'petitioner' else 'fw-medium' }}">
+                                {{ case.petparty_name }}
+                            </div>
+                        </div>
                     </div>
                     <div class="col-6">
-                        <small class="text-muted d-block">Respondent</small>
-                        <div class="fw-medium small">{{ case.resparty_name or 'N/A' }}</div>
+                        <!-- Respondent Box - BLUE if user_side = 'respondent' -->
+                        <div class="party-respondent p-2 rounded border
+                                    {{ 'border-primary bg-primary-subtle fw-bold' if case.user_side == 'respondent' else '' }}" {% if case.user_side=='respondent' %} style="border: 3px solid #0d6efd !important; 
+                                       background-color: rgba(13, 110, 253, 0.15) !important; 
+                                       box-shadow: 0 0 10px rgba(13, 110, 253, 0.3);
+                                       font-weight: bold !important;" {% else %} style="border: 1px solid #dee2e6;" {% endif %}>
+                            <small class="text-muted d-block">
+                                <i class="fas fa-user-shield {{ 'text-primary' if case.user_side == 'respondent' else '' }}"></i> 
+                                Respondent:
+                            </small>
+                            <div class="{{ 'text-primary fw-bold' if case.user_side == 'respondent' else 'fw-medium' }}">
+                                {{ case.resparty_name }}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="case-details mb-3">
-                <div class="row small">
-                    <div class="col-12 mb-1">
-                        <i class="fas fa-calendar-alt text-primary me-1"></i>
-                        <strong>Next Date:</strong> {{ case.date_next_list or 'Not set' }}
-                    </div>
-                    <div class="col-12 mb-1">
-                        <i class="fas fa-building text-info me-1"></i> {{ case.establishment_name or 'N/A' }}
-                    </div>
-                    <div class="col-12">
-                        <i class="fas fa-gavel text-secondary me-1"></i> {{ case.purpose_name or 'N/A' }}
-                    </div>
+            <!-- User Side Status Display with Colors -->
+            <div class="user-side-status mb-3">
+                {% if case.user_side == 'petitioner' %}
+                <div class="alert alert-danger py-2 border-danger">
+                    <i class="fas fa-user-tie"></i> <strong>You are the PETITIONER</strong> in this case
                 </div>
+                {% elif case.user_side == 'respondent' %}
+                <div class="alert alert-primary py-2 border-primary">
+                    <i class="fas fa-user-shield"></i> <strong>You are the RESPONDENT</strong> in this case
+                </div>
+                {% else %}
+                <div class="alert alert-secondary py-2">
+                    <i class="fas fa-question"></i> Your side in this case is <strong>not set</strong>
+                    <button class="btn btn-sm btn-outline-secondary ms-2" type="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-cog"></i> Set Side
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <a class="dropdown-item" href="#" onclick="setUserSide('{{ case.cino }}', 'petitioner')">
+                                <i class="fas fa-user-tie text-danger"></i> I'm Petitioner
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="#" onclick="setUserSide('{{ case.cino }}', 'respondent')">
+                                <i class="fas fa-user-shield text-primary"></i> I'm Respondent
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                {% endif %}
             </div>
 
+            <!-- Case Details -->
+            <div class="case-details mb-3 flex-grow-1">
+                <strong>Next Hearing:</strong>
+                <span class="badge bg-info text-white">{{ case.date_next_list or 'Not scheduled' }}</span><br>
+                <strong>Court:</strong> {{ case.court_no_desg_name }}<br>
+                <strong>Purpose:</strong> {{ case.purpose_name }}<br> {% if case.establishment_name %}
+                <strong>Establishment:</strong> {{ case.establishment_name[:50] }}... {% endif %}
+            </div>
+
+            <!-- Change Summary -->
             {% if case.is_changed and case.change_summary %}
-            <div class="change-summary mb-3 p-2 bg-warning bg-opacity-10 rounded small" id="changes-{{ case.cino }}" style="display: none;">
-                <strong class="text-warning">Recent Changes:</strong><br> {% set changes = case.change_summary.replace('[', '').replace(']', '').replace('"', '').split(',') %} {% for change in changes %}
-                <span class="d-block">• {{ change.strip() }}</span> {% endfor %}
+            <div class="change-summary mb-3">
+                <div class="alert alert-warning py-2">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Changes:</strong> {{ case.change_summary[:100] }}...
+                </div>
             </div>
             {% endif %}
 
-            <div class="notes-section">
-                <label class="form-label small fw-medium">Your Notes:</label>
-                <textarea class="form-control notes-input small" rows="2" placeholder="Add your notes for this case..." onchange="markCaseModified('{{ case.cino }}')">{{ case.user_notes or '' }}</textarea>
-            </div>
-        </div>
+            <!-- Notes Section -->
+            <div class="notes-section mt-auto">
+                <label class="form-label small text-muted">Your Notes:</label>
+                <textarea class="form-control notes-input" placeholder="Add your notes..." onchange="markCaseModified('{{ case.cino }}')">{{ case.user_notes or '' }}</textarea>
 
-        <div class="card-footer bg-transparent">
-            <div class="d-flex gap-2">
-                <button class="btn btn-outline-primary btn-sm flex-fill" onclick="openCaseDetail('{{ case.cino }}')">
-                    <i class="fas fa-edit me-1"></i>Edit Details
-                </button>
-                <button class="btn btn-success btn-sm" onclick="saveCase('{{ case.cino }}')">
-                    <i class="fas fa-save"></i>
-                </button> {% if case.is_changed %}
-                <button class="btn btn-outline-secondary btn-sm" onclick="markReviewed('{{ case.cino }}')">
-                    <i class="fas fa-check"></i>
-                </button> {% endif %}
+                <!-- Action Buttons -->
+                <div class="card-buttons mt-2 d-flex gap-2">
+                    <button class="btn btn-success btn-sm" onclick="saveCase('{{ case.cino }}')">
+                        <i class="fas fa-save"></i> Save
+                    </button> {% if case.is_changed %}
+                    <button class="btn btn-info btn-sm" onclick="markReviewed('{{ case.cino }}')">
+                        <i class="fas fa-check"></i> Reviewed
+                    </button> {% endif %}
+                    <button class="btn btn-outline-primary btn-sm" onclick="openCaseDetail('{{ case.cino }}')">
+                        <i class="fas fa-eye"></i> Details
+                    </button>
+                </div>
             </div>
         </div>
     </div>

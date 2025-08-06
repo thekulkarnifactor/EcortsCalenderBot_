@@ -8,6 +8,12 @@
     --info-color: #0dcaf0;
     --light-bg: #f8f9fa;
     --border-radius: 0.375rem;
+    --petitioner-color: #dc3545;
+    /* Red */
+    --respondent-color: #0d6efd;
+    /* Blue */
+    --not-set-color: #6c757d;
+    /* Gray */
 }
 
 body {
@@ -70,6 +76,171 @@ body {
     display: flex !important;
     align-items: center !important;
     overflow: hidden;
+}
+
+.card-header.bg-danger {
+    background: linear-gradient(135deg, #dc3545, #c82333) !important;
+}
+
+.card-header.bg-primary {
+    background: linear-gradient(135deg, #0d6efd, #0b5ed7) !important;
+}
+
+.card-header.bg-secondary {
+    background: linear-gradient(135deg, #6c757d, #5a6268) !important;
+}
+
+
+/* Card Header Colors based on user side */
+
+.card-header.user-side-petitioner {
+    background-color: var(--petitioner-color) !important;
+    color: white !important;
+    border-bottom: 1px solid rgba(220, 53, 69, 0.3) !important;
+}
+
+.card-header.user-side-respondent {
+    background-color: var(--respondent-color) !important;
+    color: white !important;
+    border-bottom: 1px solid rgba(13, 110, 253, 0.3) !important;
+}
+
+
+/* Card Left Border Indicators */
+
+.case-card.user-side-petitioner {
+    border-left: 4px solid var(--petitioner-color) !important;
+}
+
+.case-card.user-side-respondent {
+    border-left: 4px solid var(--respondent-color) !important;
+}
+
+
+/* Party Name Highlighting */
+
+.party-petitioner.user-selected {
+    border: 2px solid var(--petitioner-color) !important;
+    background-color: rgba(220, 53, 69, 0.1) !important;
+    font-weight: bold !important;
+}
+
+.party-respondent.user-selected {
+    border: 2px solid var(--respondent-color) !important;
+    background-color: rgba(13, 110, 253, 0.1) !important;
+    font-weight: bold !important;
+}
+
+
+/* Card Left Border Colors */
+
+.user-side-petitioner {
+    border-left: 5px solid var(--petitioner-color) !important;
+    box-shadow: 0 0.125rem 0.25rem rgba(220, 53, 69, 0.2) !important;
+}
+
+.user-side-respondent {
+    border-left: 5px solid var(--respondent-color) !important;
+    box-shadow: 0 0.125rem 0.25rem rgba(13, 110, 253, 0.2) !important;
+}
+
+
+/* Enhanced hover effects for user sides */
+
+.user-side-petitioner:hover {
+    box-shadow: 0 0.5rem 1rem rgba(220, 53, 69, 0.3) !important;
+    transform: translateY(-3px);
+}
+
+.user-side-respondent:hover {
+    box-shadow: 0 0.5rem 1rem rgba(13, 110, 253, 0.3) !important;
+    transform: translateY(-3px);
+}
+
+.user-side-badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.user-side-badge.petitioner {
+    background-color: var(--petitioner-color);
+    color: white;
+}
+
+.user-side-badge.respondent {
+    background-color: var(--respondent-color);
+    color: white;
+}
+
+.user-side-badge.not-set {
+    background-color: var(--not-set-color);
+    color: white;
+}
+
+
+/* Quick User Side Selector */
+
+.user-side-selector {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 5;
+}
+
+.user-side-selector .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+    border: none;
+    background: rgba(255, 255, 255, 0.9);
+    color: #6c757d;
+}
+
+.user-side-selector .btn:hover {
+    background: white;
+    color: #495057;
+}
+
+
+/* Party name highlighting */
+
+.case-parties .fw-medium.text-danger {
+    background-color: rgba(220, 53, 69, 0.1) !important;
+    border-color: var(--petitioner-color) !important;
+}
+
+.case-parties .fw-medium.text-primary {
+    background-color: rgba(13, 110, 253, 0.1) !important;
+    border-color: var(--respondent-color) !important;
+}
+
+.fab {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    text-decoration: none;
+}
+
+.fab:hover {
+    background-color: #218838;
+    transform: scale(1.1);
+    color: white;
+    text-decoration: none;
+}
+
+.fab i {
+    font-size: 24px;
 }
 
 
@@ -448,6 +619,19 @@ body {
     border: none;
 }
 
+.btn-success {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    border: none;
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+    transition: all 0.3s ease;
+}
+
+.btn-success:hover {
+    background: linear-gradient(135deg, #218838 0%, #1ea67d 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.4);
+}
+
 
 /* Tab Styling */
 
@@ -457,17 +641,13 @@ body {
 }
 
 .nav-tabs .nav-link {
-    border: none;
-    color: #6c757d;
-    font-weight: 500;
-    padding: 0.75rem 1.5rem;
-    border-radius: var(--border-radius) var(--border-radius) 0 0;
+    border-radius: 8px 8px 0 0;
+    margin-right: 4px;
     transition: all 0.3s ease;
 }
 
 .nav-tabs .nav-link:hover {
-    background-color: rgba(13, 110, 253, 0.1);
-    border-color: transparent;
+    background-color: rgba(0, 123, 255, 0.1);
 }
 
 .nav-tabs .nav-link.active {

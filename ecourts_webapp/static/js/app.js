@@ -607,17 +607,17 @@ function createCalendarEvents() {
             showAlert(`Calendar creation failed: ${data.error}`, 'danger');
         } else {
             const detailedMessage = `Calendar Updated Successfully!\n\n` +
-                `ðŸ“… ${data.created} events created\n` +
-                `â© ${data.skipped} events skipped (duplicates/invalid)\n` +
-                `âŒ ${data.failed} events failed\n` +
-                `ðŸ“ ${data.cases_with_notes} cases had notes\n` +
-                `ðŸ“„ ${data.cases_without_notes} cases without notes`;
+                `ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ ${data.created} events created\n` +
+                `ÃƒÆ’Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒâ€šÃ‚Â© ${data.skipped} events skipped (duplicates/invalid)\n` +
+                `ÃƒÆ’Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒâ€¦Ã¢â‚¬â„¢ ${data.failed} events failed\n` +
+                `ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒâ€šÃ‚Â ${data.cases_with_notes} cases had notes\n` +
+                `ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ ${data.cases_without_notes} cases without notes`;
             
             showAlert(detailedMessage, 'success');
             
             if (data.excel_file) {
                 setTimeout(() => {
-                    showAlert('ðŸ“ Reference file created: ' + data.excel_file, 'info');
+                    showAlert('ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒâ€šÃ‚Â Reference file created: ' + data.excel_file, 'info');
                 }, 3000);
             }
         }
