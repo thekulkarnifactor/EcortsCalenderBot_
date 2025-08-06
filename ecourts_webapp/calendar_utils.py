@@ -92,7 +92,7 @@ def create_google_calendar_events_for_cases(
         Dictionary with creation statistics
     """
     try:
-        print("🗓️ Starting calendar event creation...")
+        print("ðŸ—“ï¸ Starting calendar event creation...")
         
         # Authenticate
         creds = google_calendar_authenticate(token_path, creds_path, port)
@@ -100,14 +100,14 @@ def create_google_calendar_events_for_cases(
             return {'created': 0, 'failed': 0, 'skipped': 0, 'error': 'Authentication failed'}
         
         service = build('calendar', 'v3', credentials=creds)
-        print("✅ Calendar service authenticated")
+        print("âœ… Calendar service authenticated")
         
         created_count = 0
         failed_count = 0
         skipped_count = 0
         
         # Get existing events to avoid duplicates
-        print("📋 Checking for existing events...")
+        print("ðŸ“‹ Checking for existing events...")
         existing_events = get_existing_court_events(service, calendar_id)
         existing_keys = set()
         
@@ -116,7 +116,7 @@ def create_google_calendar_events_for_cases(
             start_date = event.get('start', {}).get('date') or event.get('start', {}).get('dateTime', '')[:10]
             existing_keys.add(f"{summary}|{start_date}")
         
-        print(f"📊 Found {len(existing_keys)} existing court events")
+        print(f"ðŸ“Š Found {len(existing_keys)} existing court events")
         
         # Process each case
         for i, case in enumerate(cases_data):
@@ -136,7 +136,7 @@ def create_google_calendar_events_for_cases(
                 # Parse next hearing date
                 next_date = case.get('date_next_list', '')
                 if not next_date or next_date in ['Not set', '', None]:
-                    print(f"⏩ Skipping case {case.get('case_no', 'Unknown')} - no valid date")
+                    print(f"â© Skipping case {case.get('case_no', 'Unknown')} - no valid date")
                     skipped_count += 1
                     continue
                 
@@ -153,20 +153,20 @@ def create_google_calendar_events_for_cases(
                             except ValueError:
                                 continue
                         else:
-                            print(f"⚠️ Invalid date format for case {case.get('case_no', 'Unknown')}: {next_date}")
+                            print(f"âš ï¸ Invalid date format for case {case.get('case_no', 'Unknown')}: {next_date}")
                             skipped_count += 1
                             continue
                     else:
                         event_date = next_date
                 except Exception as date_error:
-                    print(f"⚠️ Date parsing error for case {case.get('case_no', 'Unknown')}: {date_error}")
+                    print(f"âš ï¸ Date parsing error for case {case.get('case_no', 'Unknown')}: {date_error}")
                     skipped_count += 1
                     continue
                 
                 # Check for duplicates
                 duplicate_key = f"{event_title.lower()}|{event_date}"
                 if duplicate_key in existing_keys:
-                    print(f"⏩ Skipping duplicate: {event_title} on {event_date}")
+                    print(f"â© Skipping duplicate: {event_title} on {event_date}")
                     skipped_count += 1
                     continue
                 
@@ -211,7 +211,7 @@ def create_google_calendar_events_for_cases(
                     body=event_body
                 ).execute()
                 
-                print(f"✅ Created event #{created_count + 1}: {event_title} on {event_date}")
+                print(f"âœ… Created event #{created_count + 1}: {event_title} on {event_date}")
                 created_count += 1
                 
                 # Add to existing keys to prevent duplicates in this batch
@@ -233,7 +233,7 @@ def create_google_calendar_events_for_cases(
                 time.sleep(0.2)
                 
             except Exception as case_error:
-                print(f"❌ Failed to create event for case {case.get('case_no', 'Unknown')}: {case_error}")
+                print(f"âŒ Failed to create event for case {case.get('case_no', 'Unknown')}: {case_error}")
                 failed_count += 1
         
         result = {
@@ -243,11 +243,11 @@ def create_google_calendar_events_for_cases(
             'total_processed': len(cases_data)
         }
         
-        print(f"🎉 Calendar creation complete: {created_count} created, {failed_count} failed, {skipped_count} skipped")
+        print(f"ðŸŽ‰ Calendar creation complete: {created_count} created, {failed_count} failed, {skipped_count} skipped")
         return result
         
     except Exception as e:
-        print(f"💥 Critical error in calendar creation: {e}")
+        print(f"ðŸ’¥ Critical error in calendar creation: {e}")
         import traceback
         traceback.print_exc()
         return {
@@ -269,15 +269,15 @@ def get_court_events_for_deletion(
     Get all court events that can be deleted with enhanced debugging.
     """
     try:
-        print("🔍 Starting court events search...")
+        print("ðŸ” Starting court events search...")
         
         creds = google_calendar_authenticate(token_path, creds_path, port)
         if not creds:
-            print("❌ Authentication failed!")
+            print("âŒ Authentication failed!")
             return []
             
         service = build('calendar', 'v3', credentials=creds)
-        print("✓ Calendar service initialized")
+        print("âœ“ Calendar service initialized")
 
         court_events = []
         page_token = None
@@ -286,7 +286,7 @@ def get_court_events_for_deletion(
 
         while True:
             batch_count += 1
-            print(f"📋 Scanning batch #{batch_count}...")
+            print(f"ðŸ“‹ Scanning batch #{batch_count}...")
             
             try:
                 events_result = service.events().list(
@@ -300,7 +300,7 @@ def get_court_events_for_deletion(
                 events = events_result.get('items', [])
                 batch_court_events = 0
                 
-                print(f"📊 Batch #{batch_count}: Found {len(events)} total events")
+                print(f"ðŸ“Š Batch #{batch_count}: Found {len(events)} total events")
                 total_events_scanned += len(events)
 
                 for event in events:
@@ -329,25 +329,25 @@ def get_court_events_for_deletion(
                         
                         # Debug: Show first few matches
                         if len(court_events) <= 5:
-                            print(f"🎯 Court event #{len(court_events)}: '{summary[:50]}...'")
+                            print(f"ðŸŽ¯ Court event #{len(court_events)}: '{summary[:50]}...'")
 
-                print(f"✅ Batch #{batch_count}: Found {batch_court_events} court events")
+                print(f"âœ… Batch #{batch_count}: Found {batch_court_events} court events")
                 
                 page_token = events_result.get('nextPageToken')
                 if not page_token:
                     break
                     
             except Exception as batch_error:
-                print(f"❌ Error in batch #{batch_count}: {batch_error}")
+                print(f"âŒ Error in batch #{batch_count}: {batch_error}")
                 break
 
-        print(f"🎉 Search complete: {len(court_events)} court events found from {total_events_scanned} total events")
-        print(f"📈 Success rate: {len(court_events)/total_events_scanned*100:.1f}% if total > 0")
+        print(f"ðŸŽ‰ Search complete: {len(court_events)} court events found from {total_events_scanned} total events")
+        print(f"ðŸ“ˆ Success rate: {len(court_events)/total_events_scanned*100:.1f}% if total > 0")
         
         return court_events
         
     except Exception as e:
-        print(f"💥 Critical error in search function: {e}")
+        print(f"ðŸ’¥ Critical error in search function: {e}")
         import traceback
         traceback.print_exc()
         return []
@@ -374,14 +374,14 @@ def delete_court_events_by_summary_or_description(
         print("Starting authentication...")
         creds = google_calendar_authenticate(token_path, creds_path, port)
         if not creds:
-            print("❌ Authentication failed!")
+            print("âŒ Authentication failed!")
             return {'deleted': 0, 'failed': 0, 'total_processed': 0, 'error': 'Authentication failed'}
         
-        print("✓ Authentication successful")
+        print("âœ“ Authentication successful")
         
         # Build service
         service = build('calendar', 'v3', credentials=creds)
-        print("✓ Calendar service created")
+        print("âœ“ Calendar service created")
 
         deleted_count = 0
         failed_count = 0
@@ -393,7 +393,7 @@ def delete_court_events_by_summary_or_description(
 
         while True:
             loop_count += 1
-            print(f"📋 Loop #{loop_count}: Fetching events from calendar...")
+            print(f"ðŸ“‹ Loop #{loop_count}: Fetching events from calendar...")
             
             try:
                 # Fetch events with error handling
@@ -406,10 +406,10 @@ def delete_court_events_by_summary_or_description(
                     timeMin=None,  # Get all events (past and future)
                 ).execute()
                 
-                print(f"✓ API call successful for loop #{loop_count}")
+                print(f"âœ“ API call successful for loop #{loop_count}")
                 
             except Exception as api_error:
-                print(f"❌ API call failed: {api_error}")
+                print(f"âŒ API call failed: {api_error}")
                 return {
                     'deleted': deleted_count,
                     'failed': failed_count + 1,
@@ -418,11 +418,11 @@ def delete_court_events_by_summary_or_description(
                 }
 
             events = events_result.get('items', [])
-            print(f"📊 Found {len(events)} total events in this batch")
+            print(f"ðŸ“Š Found {len(events)} total events in this batch")
 
             # Debug: Show first few events
             if loop_count == 1 and events:
-                print("📝 Sample events:")
+                print("ðŸ“ Sample events:")
                 for i, event in enumerate(events[:3]):
                     summary = event.get('summary', 'No Summary')
                     description = event.get('description', 'No Description')
@@ -448,24 +448,24 @@ def delete_court_events_by_summary_or_description(
                 if is_court_event:
                     to_delete.append(event)
                     if len(to_delete) <= 3:  # Debug first few matches
-                        print(f"🎯 Match found: '{summary}'")
+                        print(f"ðŸŽ¯ Match found: '{summary}'")
 
-            print(f"🎯 Found {len(to_delete)} court events to delete in this batch")
+            print(f"ðŸŽ¯ Found {len(to_delete)} court events to delete in this batch")
 
             # Break if no events to delete in this batch
             if not to_delete:
-                print(f"ℹ️ No court events found in batch #{loop_count}")
+                print(f"â„¹ï¸ No court events found in batch #{loop_count}")
                 # Check if there are more pages
                 page_token = events_result.get('nextPageToken')
                 if not page_token:
-                    print("ℹ️ No more pages to fetch")
+                    print("â„¹ï¸ No more pages to fetch")
                     break
                 else:
-                    print(f"ℹ️ Moving to next page (token: {page_token[:10]}...)")
+                    print(f"â„¹ï¸ Moving to next page (token: {page_token[:10]}...)")
                     continue
 
             # Delete events with progress tracking
-            print(f"🗑️ Starting deletion of {len(to_delete)} events...")
+            print(f"ðŸ—‘ï¸ Starting deletion of {len(to_delete)} events...")
             
             for i, event in enumerate(to_delete):
                 event_id = event.get('id')
@@ -473,10 +473,10 @@ def delete_court_events_by_summary_or_description(
                 
                 try:
                     service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
-                    print(f"✅ Deleted event #{total_processed + 1}: '{summary[:50]}...'")
+                    print(f"âœ… Deleted event #{total_processed + 1}: '{summary[:50]}...'")
                     deleted_count += 1
                 except Exception as delete_error:
-                    print(f"❌ Failed to delete event '{summary[:50]}...': {delete_error}")
+                    print(f"âŒ Failed to delete event '{summary[:50]}...': {delete_error}")
                     failed_count += 1
                 
                 total_processed += 1
@@ -492,7 +492,7 @@ def delete_court_events_by_summary_or_description(
                             'batch': loop_count
                         })
                     except Exception as callback_error:
-                        print(f"⚠️ Progress callback error: {callback_error}")
+                        print(f"âš ï¸ Progress callback error: {callback_error}")
 
                 # Add small delay to avoid rate limiting
                 import time
@@ -501,10 +501,10 @@ def delete_court_events_by_summary_or_description(
             # Check for next page
             page_token = events_result.get('nextPageToken')
             if not page_token:
-                print("✅ All pages processed")
+                print("âœ… All pages processed")
                 break
             else:
-                print(f"➡️ Moving to next page...")
+                print(f"âž¡ï¸ Moving to next page...")
 
         # Final results
         result = {
@@ -514,11 +514,11 @@ def delete_court_events_by_summary_or_description(
             'batches_processed': loop_count
         }
         
-        print(f"🎉 Deletion complete: {deleted_count} deleted, {failed_count} failed, {loop_count} batches processed")
+        print(f"ðŸŽ‰ Deletion complete: {deleted_count} deleted, {failed_count} failed, {loop_count} batches processed")
         return result
         
     except Exception as e:
-        print(f"💥 Critical error in deletion function: {e}")
+        print(f"ðŸ’¥ Critical error in deletion function: {e}")
         import traceback
         traceback.print_exc()
         return {
@@ -613,12 +613,12 @@ def clear_local_case_files() -> Dict[str, any]:
                     # Delete the file
                     os.remove(file_path)
                     deleted_files.append(file_path)
-                    print(f"🗑️ Deleted file: {file_path} ({file_size} bytes)")
+                    print(f"ðŸ—‘ï¸ Deleted file: {file_path} ({file_size} bytes)")
                 else:
-                    print(f"⏩ File not found: {file_path}")
+                    print(f"â© File not found: {file_path}")
             except Exception as file_error:
                 failed_files.append(f"{file_path}: {str(file_error)}")
-                print(f"❌ Failed to delete {file_path}: {file_error}")
+                print(f"âŒ Failed to delete {file_path}: {file_error}")
         
         return {
             'deleted_files': deleted_files,
@@ -655,7 +655,7 @@ def complete_system_cleanup(
         Dictionary with complete cleanup results
     """
     try:
-        print("🧹 Starting complete system cleanup...")
+        print("ðŸ§¹ Starting complete system cleanup...")
         cleanup_results = {
             'calendar_deletion': {},
             'database_cleanup': {},
@@ -673,9 +673,9 @@ def complete_system_cleanup(
             db = CaseDatabase()
             backup_path = db.backup_data_before_clear()
             cleanup_results['backup_created'] = backup_path
-            print("✅ Backup created successfully")
+            print("âœ… Backup created successfully")
         except Exception as backup_error:
-            print(f"⚠️ Backup creation failed: {backup_error}")
+            print(f"âš ï¸ Backup creation failed: {backup_error}")
         
         # Step 2: Delete calendar events
         if progress_callback:
@@ -689,7 +689,7 @@ def complete_system_cleanup(
             }) if progress_callback else None
         )
         cleanup_results['calendar_deletion'] = calendar_result
-        print(f"✅ Calendar cleanup: {calendar_result.get('deleted', 0)} events deleted")
+        print(f"âœ… Calendar cleanup: {calendar_result.get('deleted', 0)} events deleted")
         
         # Step 3: Clear database
         if progress_callback:
@@ -699,10 +699,10 @@ def complete_system_cleanup(
             db = CaseDatabase()
             db_result = db.clear_all_data()
             cleanup_results['database_cleanup'] = db_result
-            print(f"✅ Database cleanup: {db_result.get('cases_deleted', 0)} cases deleted")
+            print(f"âœ… Database cleanup: {db_result.get('cases_deleted', 0)} cases deleted")
         except Exception as db_error:
             cleanup_results['database_cleanup'] = {'error': str(db_error)}
-            print(f"❌ Database cleanup failed: {db_error}")
+            print(f"âŒ Database cleanup failed: {db_error}")
         
         # Step 4: Clear local files
         if progress_callback:
@@ -710,7 +710,7 @@ def complete_system_cleanup(
         
         file_result = clear_local_case_files()
         cleanup_results['file_cleanup'] = file_result
-        print(f"✅ File cleanup: {file_result.get('total_deleted', 0)} files deleted")
+        print(f"âœ… File cleanup: {file_result.get('total_deleted', 0)} files deleted")
         
         # Step 5: Final verification
         if progress_callback:
@@ -723,15 +723,15 @@ def complete_system_cleanup(
         
         cleanup_results['total_success'] = calendar_success and database_success and file_success
         
-        print(f"🎉 Complete system cleanup finished!")
-        print(f"   📅 Calendar: {calendar_result.get('deleted', 0)} events deleted")
-        print(f"   🗄️ Database: {cleanup_results['database_cleanup'].get('cases_deleted', 0)} cases deleted")
-        print(f"   📁 Files: {file_result.get('total_deleted', 0)} files deleted")
+        print(f"ðŸŽ‰ Complete system cleanup finished!")
+        print(f"   ðŸ“… Calendar: {calendar_result.get('deleted', 0)} events deleted")
+        print(f"   ðŸ—„ï¸ Database: {cleanup_results['database_cleanup'].get('cases_deleted', 0)} cases deleted")
+        print(f"   ðŸ“ Files: {file_result.get('total_deleted', 0)} files deleted")
         
         return cleanup_results
         
     except Exception as e:
-        print(f"💥 Critical error in system cleanup: {e}")
+        print(f"ðŸ’¥ Critical error in system cleanup: {e}")
         import traceback
         traceback.print_exc()
         return {

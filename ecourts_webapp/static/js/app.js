@@ -607,17 +607,17 @@ function createCalendarEvents() {
             showAlert(`Calendar creation failed: ${data.error}`, 'danger');
         } else {
             const detailedMessage = `Calendar Updated Successfully!\n\n` +
-                `📅 ${data.created} events created\n` +
-                `⏩ ${data.skipped} events skipped (duplicates/invalid)\n` +
-                `❌ ${data.failed} events failed\n` +
-                `📝 ${data.cases_with_notes} cases had notes\n` +
-                `📄 ${data.cases_without_notes} cases without notes`;
+                `ðŸ“… ${data.created} events created\n` +
+                `â© ${data.skipped} events skipped (duplicates/invalid)\n` +
+                `âŒ ${data.failed} events failed\n` +
+                `ðŸ“ ${data.cases_with_notes} cases had notes\n` +
+                `ðŸ“„ ${data.cases_without_notes} cases without notes`;
             
             showAlert(detailedMessage, 'success');
             
             if (data.excel_file) {
                 setTimeout(() => {
-                    showAlert('📁 Reference file created: ' + data.excel_file, 'info');
+                    showAlert('ðŸ“ Reference file created: ' + data.excel_file, 'info');
                 }, 3000);
             }
         }

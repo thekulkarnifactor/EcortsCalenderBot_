@@ -87,12 +87,52 @@
         window.location.href = `/case/${cino}`;
     }
 
-    function createCalendarForReviewed() {
-        if (confirm('Create calendar events for all reviewed cases?')) {
-            window.location.href = '{{ url_for("dashboard") }}';
-            setTimeout(() => {
-                createCalendarEvents();
-            }, 500);
+    async function createCalendarForReviewed() {
+        if (!confirm('Create calendar events for all reviewed cases?')) return;
+
+        try {
+            showLoading();
+
+            // Get reviewed cases data first
+            const response = await fetch('/reviewed_cases_data');
+            const reviewedCases = await response.json();
+
+            if (!reviewedCases || reviewedCases.length === 0) {
+                hideLoading();
+                showAlert('No reviewed cases found to create calendar events', 'warning');
+                return;
+            }
+
+            // Create calendar events specifically for reviewed cases
+            const calendarResponse = await fetch('/create_calendar_events', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    cases: reviewedCases,
+                    filter: 'reviewed_only'
+                })
+            });
+
+            const result = await calendarResponse.json();
+
+            hideLoading();
+
+            if (result.error) {
+                showAlert('Failed to create calendar events: ' + result.error, 'danger');
+            } else {
+                showAlert(`Successfully created ${result.created} calendar events!`, 'success');
+                // Optional: redirect only after success
+                setTimeout(() => {
+                    window.location.href = '{{ url_for("dashboard") }}';
+                }, 2000);
+            }
+
+        } catch (error) {
+            hideLoading();
+            showAlert('Error creating calendar events: ' + error.message, 'danger');
+            console.error('Calendar creation error:', error);
         }
     }
 </script>

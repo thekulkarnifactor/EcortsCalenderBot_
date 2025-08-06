@@ -172,7 +172,7 @@ class CaseDatabase:
             
             conn.commit()
             conn.close()
-            print("📊 Daily file processed:", stats)
+            print("ðŸ“Š Daily file processed:", stats)
             return stats
             
         except Exception as e:
@@ -229,7 +229,7 @@ class CaseDatabase:
             case_data.get('type_name') or '',
             case_data.get('court_no_desg_name') or '', 
             case_data.get('disp_name') or '',
-            json.dumps([f"{c['field']}: {c['old_value']} → {c['new_value']}" for c in changes]),
+            json.dumps([f"{c['field']}: {c['old_value']} â†’ {c['new_value']}" for c in changes]),
             json.dumps(case_data), 
             cino
         ))
@@ -386,7 +386,7 @@ class CaseDatabase:
             conn.commit()
             conn.close()
             
-            print(f"🗑️ Database cleared: {cases_count} cases, {history_count} history records")
+            print(f"ðŸ—‘ï¸ Database cleared: {cases_count} cases, {history_count} history records")
             
             return {
                 'cases_deleted': cases_count,
@@ -427,7 +427,7 @@ class CaseDatabase:
             # Copy the database file
             shutil.copy2(self.db_path, backup_path)
             
-            print(f"💾 Database backup created: {backup_path}")
+            print(f"ðŸ’¾ Database backup created: {backup_path}")
             return backup_path
             
         except Exception as e:

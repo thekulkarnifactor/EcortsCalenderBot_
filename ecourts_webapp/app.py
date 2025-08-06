@@ -27,7 +27,7 @@ def get_or_create_secret_key():
         secret_key = secrets.token_urlsafe(32)
         with open(secret_file, 'w') as f:
             f.write(secret_key)
-        print("✅ Generated new secret.key file")
+        print("âœ… Generated new secret.key file")
         return secret_key
 
 # In your Flask app
@@ -167,18 +167,23 @@ def save_all():
 def create_calendar_events():
     """Create Google Calendar events with notes"""
     try:
-        print("🗓️ Starting calendar event creation...")
+        data = request.json
+        filter_type = data.get('filter', 'all')
         
-        # Get all cases with notes from database
-        cases = db.get_all_cases()
+        if filter_type == 'reviewed_only':
+            # Use provided cases from request
+            cases = data.get('cases', [])
+        else:
+            # Get all cases as before
+            cases = db.get_all_cases()
         
         # Filter cases with valid dates
         valid_cases = []
         for case in cases:
-            if (case.get('date_next_list') and 
+            if (case.get('date_next_list') and
                 case['date_next_list'] not in ['Not set', '', None]):
                 valid_cases.append(case)
-        
+
         if not valid_cases:
             return jsonify({
                 'error': 'No cases with valid dates found',
@@ -187,15 +192,11 @@ def create_calendar_events():
                 'skipped': 0,
                 'total_cases': len(cases)
             }), 400
-        
-        print(f"📊 Processing {len(valid_cases)} cases with valid dates...")
-        
-        # Import the calendar creation function
-        from calendar_utils import create_google_calendar_events_for_cases
-        
+
         # Create calendar events
+        from calendar_utils import create_google_calendar_events_for_cases
         result = create_google_calendar_events_for_cases(valid_cases)
-        
+
         # Check for errors
         if 'error' in result:
             return jsonify({
@@ -204,53 +205,15 @@ def create_calendar_events():
                 'failed': result.get('failed', 0),
                 'skipped': result.get('skipped', 0)
             }), 500
-        
-        # Create Excel file for reference
-        excel_path = 'data/calendar_events_created.xlsx'
-        try:
-            import pandas as pd
-            
-            # Prepare data for Excel
-            excel_data = []
-            for case in valid_cases:
-                petitioner = case.get('petparty_name', '')
-                respondent = case.get('resparty_name', '')
-                
-                if petitioner and respondent and petitioner != 'XXXXXXX':
-                    event_title = f"{petitioner} vs {respondent}"
-                else:
-                    event_title = f"Case {case.get('case_no', 'Unknown')}"
-                
-                excel_data.append({
-                    'Event Title': event_title,
-                    'Date': case.get('date_next_list', ''),
-                    'Case No': case.get('case_no', ''),
-                    'CINO': case.get('cino', ''),
-                    'Court': case.get('establishment_name', ''),
-                    'Purpose': case.get('purpose_name', ''),
-                    'Your Notes': case.get('user_notes', '')
-                })
-            
-            df = pd.DataFrame(excel_data)
-            df.to_excel(excel_path, index=False)
-            print(f"📁 Excel file created: {excel_path}")
-            
-        except Exception as excel_error:
-            print(f"⚠️ Excel file creation failed: {excel_error}")
-        
-        success_message = f"Calendar updated successfully! {result['created']} events created, {result['skipped']} skipped, {result['failed']} failed"
-        
+
         return jsonify({
-            'message': success_message,
+            'message': f"Calendar updated successfully! {result['created']} events created",
             'created': result['created'],
             'failed': result['failed'],
             'skipped': result['skipped'],
-            'total_processed': result['total_processed'],
-            'cases_with_notes': len([c for c in valid_cases if c.get('user_notes', '').strip()]),
-            'cases_without_notes': len([c for c in valid_cases if not c.get('user_notes', '').strip()]),
-            'excel_file': excel_path
+            'total_processed': result['total_processed']
         })
-        
+
     except Exception as e:
         print(f"Calendar creation error: {e}")
         import traceback
@@ -310,22 +273,22 @@ def calendar_events_preview():
 def delete_calendar_events():
     """Delete all court calendar events with enhanced debugging"""
     try:
-        print("🚀 Starting calendar deletion process...")
+        print("ðŸš€ Starting calendar deletion process...")
         
         data = request.json
         deletion_method = data.get('method', 'auto')
         event_ids = data.get('event_ids', [])
         
         if deletion_method == 'by_ids' and event_ids:
-            print(f"🎯 Deleting specific events by ID: {len(event_ids)} events")
+            print(f"ðŸŽ¯ Deleting specific events by ID: {len(event_ids)} events")
             result = delete_events_by_ids(event_ids)
         else:
-            print("🔄 Auto-deleting all court events")
+            print("ðŸ”„ Auto-deleting all court events")
             result = delete_court_events_by_summary_or_description()
         
         # Check for errors in result
         if 'error' in result:
-            print(f"❌ Deletion failed: {result['error']}")
+            print(f"âŒ Deletion failed: {result['error']}")
             return jsonify({
                 'error': result['error'],
                 'deleted': result.get('deleted', 0),
@@ -334,7 +297,7 @@ def delete_calendar_events():
             }), 500
         
         success_message = f"Successfully processed {result['total_processed']} events: {result['deleted']} deleted, {result['failed']} failed"
-        print(f"✅ {success_message}")
+        print(f"âœ… {success_message}")
         
         return jsonify({
             'message': success_message,
@@ -346,7 +309,7 @@ def delete_calendar_events():
         
     except Exception as e:
         error_msg = f'Calendar deletion failed: {str(e)}'
-        print(f"💥 {error_msg}")
+        print(f"ðŸ’¥ {error_msg}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': error_msg}), 500
@@ -368,7 +331,7 @@ def calendar_deletion_progress():
 def complete_system_cleanup_route():
     """Complete system cleanup: calendar + database + files"""
     try:
-        print("🧹 Starting complete system cleanup...")
+        print("ðŸ§¹ Starting complete system cleanup...")
         
         # Perform complete cleanup
         result = complete_system_cleanup()
@@ -382,13 +345,13 @@ def complete_system_cleanup_route():
             files_deleted = result.get('file_cleanup', {}).get('total_deleted', 0)
             
             detailed_message = f"""
-            🎉 System Cleanup Complete!
+            ðŸŽ‰ System Cleanup Complete!
             
-            📅 Calendar Events: {calendar_deleted} deleted
-            🗄️ Database Records: {database_deleted} deleted  
-            📁 Local Files: {files_deleted} deleted
+            ðŸ“… Calendar Events: {calendar_deleted} deleted
+            ðŸ—„ï¸ Database Records: {database_deleted} deleted  
+            ðŸ“ Local Files: {files_deleted} deleted
             
-            {f"💾 Backup saved: {result.get('backup_created', 'N/A')}" if result.get('backup_created') else ""}
+            {f"ðŸ’¾ Backup saved: {result.get('backup_created', 'N/A')}" if result.get('backup_created') else ""}
             """
             
             return jsonify({
@@ -418,7 +381,7 @@ def complete_system_cleanup_route():
             
     except Exception as e:
         error_msg = f'Complete cleanup failed: {str(e)}'
-        print(f"💥 {error_msg}")
+        print(f"ðŸ’¥ {error_msg}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': error_msg, 'success': False}), 500
@@ -427,7 +390,7 @@ def complete_system_cleanup_route():
 def clear_local_data():
     """Clear only local database and files (not calendar)"""
     try:
-        print("🗑️ Clearing local data only...")
+        print("ðŸ—‘ï¸ Clearing local data only...")
         
         # Create backup first
         db = CaseDatabase()
@@ -449,6 +412,15 @@ def clear_local_data():
     except Exception as e:
         print(f"Clear local data error: {e}")
         return jsonify({'error': f'Failed to clear local data: {str(e)}'}), 500
+
+@app.route('/reviewed_cases_data')
+def reviewed_cases_data():
+    """Get reviewed cases data for calendar creation"""
+    try:
+        reviewed_cases = db.get_reviewed_cases_with_notes()
+        return jsonify(reviewed_cases)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     print("Starting e-Courts Case Management System...")
