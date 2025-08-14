@@ -13,7 +13,6 @@ from calendar_utils import (
 )
 
 app = Flask(__name__)
-
 app.static_folder = 'static'
 app.static_url_path = '/static'
 
@@ -24,14 +23,12 @@ def get_or_create_secret_key():
         with open(secret_file, 'r') as f:
             return f.read().strip()
     else:
-        # Generate new secret key
         secret_key = secrets.token_urlsafe(32)
         with open(secret_file, 'w') as f:
             f.write(secret_key)
         print("✅ Generated new secret.key file")
         return secret_key
 
-# In your Flask app
 app.config['SECRET_KEY'] = get_or_create_secret_key()
 
 # Initialize database
@@ -39,70 +36,170 @@ os.makedirs('data', exist_ok=True)
 db = CaseDatabase()
 
 @app.route('/')
-def dashboard():
-    """Main dashboard showing all cases"""
+def index():
+    """Main entry point - redirect based on data availability"""
     try:
         cases = db.get_all_cases()
-        changed_cases = [case for case in cases if case['is_changed']]
-        reviewed_cases = db.get_reviewed_cases_with_notes()
+        if not cases:
+            return redirect(url_for('upload_page'))
+        else:
+            return redirect(url_for('dashboard'))
+    except Exception as e:
+        print(f"Index error: {e}")
+        return redirect(url_for('upload_page'))
+
+@app.route('/dashboard')
+def dashboard():
+    """Law Firm Case Management Dashboard - FIXED"""
+    try:
+        print("🏠 Accessing dashboard...")
         
-        # Get counts for badges
-        counts = db.get_case_counts()
+        # Get all cases first
+        cases = db.get_all_cases()
+        print(f"📊 Retrieved {len(cases)} total cases")
+        
+        if not cases or len(cases) == 0:
+            print("⚠️ No cases found, redirecting to upload page")
+            return redirect(url_for('upload_page'))
+            
+        # FIXED: Get different case categories with proper filtering
+        try:
+            petitioner_cases = db.get_petitioner_cases()
+            print(f"👔 Petitioner cases: {len(petitioner_cases)}")
+        except Exception as e:
+            print(f"⚠️ Error getting petitioner cases: {e}")
+            petitioner_cases = []
+            
+        try:
+            respondent_cases = db.get_respondent_cases()
+            print(f"🛡️ Respondent cases: {len(respondent_cases)}")
+        except Exception as e:
+            print(f"⚠️ Error getting respondent cases: {e}")
+            respondent_cases = []
+            
+        try:
+            # FIXED: Only get cases that are actually reviewed (is_changed = FALSE)
+            reviewed_cases = db.get_reviewed_cases_with_notes()
+            print(f"✅ Reviewed cases (is_changed=FALSE): {len(reviewed_cases)}")
+        except Exception as e:
+            print(f"⚠️ Error getting reviewed cases: {e}")
+            reviewed_cases = []
+            
+        try:
+            unassigned_cases = db.get_unassigned_cases()
+            print(f"❓ Unassigned cases: {len(unassigned_cases)}")
+        except Exception as e:
+            print(f"⚠️ Error getting unassigned cases: {e}")
+            unassigned_cases = []
+        
+        # Get upcoming cases (cases with future hearing dates)
+        upcoming_cases = []
+        try:
+            from datetime import datetime
+            today = datetime.now().date()
+            
+            for case in cases:
+                if case.get('date_next_list'):
+                    try:
+                        hearing_date = datetime.strptime(case['date_next_list'], '%Y-%m-%d').date()
+                        if hearing_date >= today:
+                            upcoming_cases.append(case)
+                    except ValueError:
+                        continue
+            
+            # Sort upcoming cases by date
+            upcoming_cases.sort(key=lambda x: x.get('date_next_list', ''))
+            print(f"📅 Upcoming cases: {len(upcoming_cases)}")
+        except Exception as e:
+            print(f"⚠️ Error processing upcoming cases: {e}")
+            upcoming_cases = []
+        
+        # Get today's date for default filtering
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        
+        # Get counts for law firm dashboard
+        try:
+            counts = db.get_case_counts()
+            print(f"📊 Counts retrieved: {counts}")
+        except Exception as e:
+            print(f"⚠️ Error getting counts: {e}")
+            # Provide default counts
+            counts = {
+                'total_cases': len(cases),
+                'changed_cases': len([c for c in cases if c.get('is_changed', False)]),
+                'reviewed_cases': len(reviewed_cases),
+                'petitioner_cases': len(petitioner_cases),
+                'respondent_cases': len(respondent_cases),
+                'cases_without_user_side': len(unassigned_cases),
+                'upcoming_hearings': len(upcoming_cases)
+            }
+        
+        print("🎯 Rendering dashboard template...")
         
         return render_template('index.html',
                              cases=cases,
-                             changed_cases=changed_cases,
+                             petitioner_cases=petitioner_cases,
+                             respondent_cases=respondent_cases,
                              reviewed_cases=reviewed_cases,
+                             unassigned_cases=unassigned_cases,
+                             upcoming_cases=upcoming_cases,
                              total_cases=counts['total_cases'],
                              changed_cases_count=counts['changed_cases'],
                              reviewed_cases_count=counts['reviewed_cases'],
                              petitioner_cases_count=counts['petitioner_cases'],
                              respondent_cases_count=counts['respondent_cases'],
                              upcoming_hearings_count=counts['upcoming_hearings'],
-                             current_date=datetime.now().strftime('%B %d, %Y'))
-    except Exception as e:
-        print(f"Dashboard error: {e}")
-        return render_template('index.html',
-                             cases=[],
-                             changed_cases=[],
-                             reviewed_cases=[],
-                             total_cases=0,
-                             changed_cases_count=0,
-                             reviewed_cases_count=0,
-                             petitioner_cases_count=0,
-                             respondent_cases_count=0,
-                             upcoming_hearings_count=0,
+                             cases_without_user_side=counts['cases_without_user_side'],
                              current_date=datetime.now().strftime('%B %d, %Y'),
-                             error=str(e))
+                             default_filter_date=today_str)
+
+    except Exception as e:
+        print(f"💥 Dashboard error: {e}")
+        import traceback
+        traceback.print_exc()
+        return render_template('error.html', 
+                             error_message=str(e),
+                             error_details="Dashboard failed to load. Please check your data and try again.")
+@app.route('/upload_page')
+def upload_page():
+    """Upload page for myCases.txt files"""
+    return render_template('upload_page.html')
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     """Upload and process daily myCases.txt file"""
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No file uploaded'}), 400
-
+            
         file = request.files['file']
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
-
+            
         if file and file.filename.endswith('.txt'):
+            os.makedirs('data', exist_ok=True)
             file_path = os.path.join('data', 'myCases.txt')
+            
             file.save(file_path)
-
+            print(f"✅ File saved to: {file_path}")
+            
             stats = db.process_daily_file(file_path)
-
+            
             if 'error' in stats:
                 return jsonify({'error': f'Processing failed: {stats["error"]}'}), 500
-
+            
             return jsonify({
                 'message': 'File processed successfully',
-                'stats': stats
+                'stats': stats,
+                'redirect_url': '/dashboard'
             })
-
+            
         return jsonify({'error': 'Invalid file type. Please upload a .txt file'}), 400
-
+        
     except Exception as e:
         print(f"Upload error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
 @app.route('/case/<cino>')
@@ -114,9 +211,7 @@ def case_detail(cino):
             return render_template('error.html',
                                  message="Case not found",
                                  error_code=404), 404
-
         return render_template('case_detail.html', case=case)
-
     except Exception as e:
         print(f"Case detail error: {e}")
         return render_template('error.html',
@@ -125,46 +220,102 @@ def case_detail(cino):
 
 @app.route('/case/<cino>/update', methods=['POST'])
 def update_case(cino):
-    """Update case notes and other fields"""
+    """Update case - Always mark as reviewed when saved"""
     try:
+        print(f"📝 Updating case {cino}...")
+        
         data = request.json
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
         notes = data.get('notes', '')
-        other_updates = data.get('updates', {})
-
-        success = db.update_case_notes(cino, notes, other_updates)
-
+        
+        print(f"📝 Notes: '{notes[:50]}...'")
+        
+        # Update case notes
+        success = db.update_case_notes(cino, notes)
+        
         if success:
-            db.mark_case_reviewed(cino)
-            return jsonify({'message': 'Case updated successfully'})
+            # Always mark as reviewed when saving
+            db.mark_case_as_reviewed(cino)
+            print(f"✅ Case {cino} marked as reviewed")
+            
+            return jsonify({
+                'message': 'Case marked as reviewed successfully',
+                'has_notes': bool(notes.strip()),
+                'marked_as_reviewed': True
+            })
         else:
             return jsonify({'error': 'Failed to update case'}), 500
-
+            
     except Exception as e:
-        print(f"Update case error: {e}")
+        print(f"❌ Update case error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Update failed: {str(e)}'}), 500
 
-@app.route('/case/<cino>/mark_reviewed', methods=['POST'])
-def mark_reviewed(cino):
-    """Mark case as reviewed"""
+@app.route('/case/<cino>/update_user_side', methods=['POST'])
+def update_user_side(cino):
+    """Update case user side (petitioner/respondent)"""
     try:
-        db.mark_case_reviewed(cino)
-        return jsonify({'message': 'Case marked as reviewed'})
-
+        data = request.json
+        user_side = data.get('user_side', '')
+        
+        if user_side not in ['petitioner', 'respondent']:
+            return jsonify({'error': 'Invalid user side. Must be petitioner or respondent'}), 400
+        
+        success = db.update_case_user_side(cino, user_side)
+        
+        if success:
+            return jsonify({
+                'message': 'User side updated successfully',
+                'user_side': user_side
+            })
+        else:
+            return jsonify({'error': 'Failed to update user side'}), 500
+            
     except Exception as e:
-        print(f"Mark reviewed error: {e}")
-        return jsonify({'error': f'Failed to mark as reviewed: {str(e)}'}), 500
+        print(f"Update user side error: {e}")
+        return jsonify({'error': f'Update failed: {str(e)}'}), 500
 
-@app.route('/create_case', methods=['GET', 'POST'])
-def create_case():
-    """Create a new case manually"""
+@app.route('/case/<cino>/update_hearing_date', methods=['POST'])
+def update_hearing_date(cino):
+    """Update case hearing date"""
+    try:
+        data = request.json
+        hearing_date = data.get('hearing_date', '')
+        
+        if hearing_date:
+            try:
+                from datetime import datetime
+                datetime.strptime(hearing_date, '%Y-%m-%d')
+            except ValueError:
+                return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        
+        success = db.update_case_hearing_date(cino, hearing_date)
+        
+        if success:
+            return jsonify({
+                'message': 'Hearing date updated successfully',
+                'hearing_date': hearing_date or None
+            })
+        else:
+            return jsonify({'error': 'Failed to update hearing date'}), 500
+            
+    except Exception as e:
+        print(f"Update hearing date error: {e}")
+        return jsonify({'error': f'Update failed: {str(e)}'}), 500
+
+@app.route('/add_case', methods=['GET', 'POST'])
+def add_case():
+    """Add new case manually for law firm"""
     if request.method == 'GET':
-        return render_template('create_case.html')
+        return render_template('add_case.html')
     
     try:
         data = request.json
-        
         # Validate required fields
-        required_fields = ['cino', 'case_no', 'petparty_name', 'resparty_name', 'type_name']
+        required_fields = ['cino', 'case_no', 'petparty_name', 'resparty_name']
         for field in required_fields:
             if not data.get(field, '').strip():
                 return jsonify({'error': f'{field} is required'}), 400
@@ -193,13 +344,43 @@ def create_case():
         success, message = db.create_new_case(case_data)
         
         if success:
-            return jsonify({'message': 'Case created successfully', 'cino': case_data['cino']})
+            return jsonify({'message': 'Case added successfully', 'cino': case_data['cino']})
         else:
             return jsonify({'error': message}), 400
             
     except Exception as e:
-        print(f"Create case error: {e}")
-        return jsonify({'error': f'Failed to create case: {str(e)}'}), 500
+        print(f"Add case error: {e}")
+        return jsonify({'error': f'Failed to add case: {str(e)}'}), 500
+
+@app.route('/toggle_case_selection', methods=['POST'])
+def toggle_case_selection():
+    """Toggle case selection for bulk operations"""
+    try:
+        data = request.json
+        cinos = data.get('cinos', [])
+        action = data.get('action', 'mark_reviewed')  # mark_reviewed, remove_from_reviewed
+        
+        if not cinos:
+            return jsonify({'error': 'No cases specified'}), 400
+            
+        if action == 'mark_reviewed':
+            success_count = db.mark_multiple_cases_as_reviewed(cinos)
+            return jsonify({
+                'message': f'Successfully marked {success_count} cases as reviewed',
+                'marked_count': success_count
+            })
+        elif action == 'remove_from_reviewed':
+            removed_count = db.remove_from_reviewed_keep_notes(cinos)
+            return jsonify({
+                'message': f'Successfully removed {removed_count} cases from reviewed section',
+                'removed_count': removed_count
+            })
+        else:
+            return jsonify({'error': 'Invalid action'}), 400
+        
+    except Exception as e:
+        print(f"Toggle case selection error: {e}")
+        return jsonify({'error': f'Operation failed: {str(e)}'}), 500
 
 @app.route('/save_all', methods=['POST'])
 def save_all():
@@ -207,58 +388,145 @@ def save_all():
     try:
         data = request.json
         updates = data.get('updates', [])
-
+        
         success_count = 0
         for update in updates:
             cino = update.get('cino')
             notes = update.get('notes', '')
             other_fields = update.get('fields', {})
-
+            
             if db.update_case_notes(cino, notes, other_fields):
-                db.mark_case_reviewed(cino)
+                db.mark_case_as_reviewed(cino)
                 success_count += 1
-
+        
         return jsonify({'message': f'Successfully saved {success_count} of {len(updates)} cases'})
-
+        
     except Exception as e:
         print(f"Save all error: {e}")
         return jsonify({'error': f'Save all failed: {str(e)}'}), 500
 
 @app.route('/create_calendar_events', methods=['POST'])
 def create_calendar_events():
-    """Create Google Calendar events with notes"""
+    """Create Google Calendar events - FIXED to handle selected cases only"""
     try:
+        print("🔍 Starting calendar creation...")
+        
+        from calendar_utils import google_calendar_authenticate
+        creds = google_calendar_authenticate()
+        
+        if not creds:
+            return jsonify({
+                'error': 'Google Calendar authentication failed.',
+                'suggestion': 'Please check your credentials and try again'
+            }), 401
+        
         data = request.json
         filter_type = data.get('filter', 'all')
-
-        if filter_type == 'reviewed_only':
-            # Use provided cases from request
+        scope = data.get('scope', 'all')
+        
+        print(f"📊 Filter type: {filter_type}, Scope: {scope}")
+        
+        # FIXED: Proper case selection logic with enhanced data
+        if filter_type in ['selected_cases_only'] or scope == 'selected':
+            # Use ONLY the cases sent from frontend
             cases = data.get('cases', [])
+            print(f"📋 Using selected cases from frontend: {len(cases)} cases")
+            
+            # Log the CINOs for debugging
+            if cases:
+                cinos = [case.get('cino') for case in cases]
+                print(f"📝 Selected CINOs: {cinos[:5]}..." if len(cinos) > 5 else f"📝 Selected CINOs: {cinos}")
+        
+        elif filter_type in ['current_tab_all'] or scope == 'all':
+            # Use all cases sent from frontend (for current tab)
+            cases = data.get('cases', [])
+            if not cases:
+                # Fallback to database if no cases provided
+                cases = db.get_all_cases()
+            print(f"📋 Using all cases: {len(cases)} cases")
+        
         else:
-            # Get all cases as before
+            # FIXED: Fallback to all cases from database but enhance with fresh data
+            print("📋 Using fallback - getting all database cases with fresh data...")
             cases = db.get_all_cases()
-
-        # Filter cases with valid dates
-        valid_cases = []
+            print(f"📋 Fallback to all database cases: {len(cases)} cases")
+        
+        # ENHANCED: Ensure all cases have complete data for calendar description
+        enhanced_cases = []
         for case in cases:
-            if (case.get('date_next_list') and
-                case['date_next_list'] not in ['Not set', '', None]):
-                valid_cases.append(case)
-
-        if not valid_cases:
+            try:
+                cino = case.get('cino', '')
+                
+                # Get fresh data from database for this case to ensure we have latest user_side
+                fresh_case = db.get_case_by_cino(cino)
+                if fresh_case:
+                    # Merge frontend data with fresh database data, prioritizing database for user_side
+                    enhanced_case = {
+                        'cino': fresh_case.get('cino', ''),
+                        'case_no': fresh_case.get('case_no', ''),
+                        'petparty_name': fresh_case.get('petparty_name', ''),
+                        'resparty_name': fresh_case.get('resparty_name', ''),
+                        'establishment_name': fresh_case.get('establishment_name', ''),
+                        'state_name': fresh_case.get('state_name', ''),
+                        'district_name': fresh_case.get('district_name', ''),
+                        'date_next_list': fresh_case.get('date_next_list', ''),
+                        'date_last_list': fresh_case.get('date_last_list', ''),
+                        'purpose_name': fresh_case.get('purpose_name', ''),
+                        'type_name': fresh_case.get('type_name', ''),
+                        'court_no_desg_name': fresh_case.get('court_no_desg_name', ''),
+                        'disp_name': fresh_case.get('disp_name', ''),
+                        'user_notes': fresh_case.get('user_notes', ''),
+                        'user_side': fresh_case.get('user_side', ''),  # Always use fresh from DB
+                        'reg_no': fresh_case.get('reg_no', ''),
+                        'reg_year': fresh_case.get('reg_year', ''),
+                    }
+                    
+                    # Override with any frontend-specific data if provided
+                    if 'user_notes' in case and case['user_notes']:
+                        enhanced_case['user_notes'] = case['user_notes']
+                    
+                    enhanced_cases.append(enhanced_case)
+                    
+                    print(f"✅ Enhanced case {cino}: user_side='{enhanced_case.get('user_side', 'Not set')}'")
+                else:
+                    # If not found in DB, use original case data
+                    enhanced_cases.append(case)
+                    print(f"⚠️ Case {cino} not found in DB, using original data")
+                    
+            except Exception as enhance_error:
+                print(f"⚠️ Error enhancing case {case.get('cino', 'Unknown')}: {enhance_error}")
+                # Use original case data if enhancement fails
+                enhanced_cases.append(case)
+        
+        cases = enhanced_cases
+        
+        if not cases:
             return jsonify({
-                'error': 'No cases with valid dates found',
+                'error': 'No cases provided for calendar creation',
                 'created': 0,
                 'failed': 0,
-                'skipped': 0,
-                'total_cases': len(cases)
+                'skipped': 0
             }), 400
-
-        # Create calendar events
+        
+        print(f"📊 Final processing {len(cases)} enhanced cases...")
+        
+        # Debug: Print first case data
+        if cases:
+            first_case = cases[0]
+            print(f"🔍 Sample case data:")
+            print(f"   CINO: {first_case.get('cino', 'N/A')}")
+            print(f"   User Side: '{first_case.get('user_side', 'Not set')}'")
+            print(f"   Type Name: '{first_case.get('type_name', 'N/A')}'")
+            print(f"   Reg No: '{first_case.get('reg_no', 'N/A')}'")
+            print(f"   Reg Year: '{first_case.get('reg_year', 'N/A')}'")
+            print(f"   Case No: '{first_case.get('case_no', 'N/A')}'")
+        
         from calendar_utils import create_google_calendar_events_for_cases
-        result = create_google_calendar_events_for_cases(valid_cases)
-
-        # Check for errors
+        result = create_google_calendar_events_for_cases(
+            cases_data=cases,
+            filter_info={'type': filter_type, 'scope': scope, 'original_request': data}
+        )
+        
         if 'error' in result:
             return jsonify({
                 'error': result['error'],
@@ -266,27 +534,168 @@ def create_calendar_events():
                 'failed': result.get('failed', 0),
                 'skipped': result.get('skipped', 0)
             }), 500
-
+        
         return jsonify({
-            'message': f"Calendar updated successfully! {result['created']} events created",
+            'message': f"Calendar updated! {result['created']} events created, {result.get('updated', 0)} updated",
             'created': result['created'],
+            'updated': result.get('updated', 0),
             'failed': result['failed'],
             'skipped': result['skipped'],
             'total_processed': result['total_processed']
         })
-
+        
     except Exception as e:
-        print(f"Calendar creation error: {e}")
+        error_msg = f'Calendar creation failed: {str(e)}'
+        print(f"💥 {error_msg}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': f'Calendar creation failed: {str(e)}'}), 500
+        return jsonify({'error': error_msg}), 500
+   
+@app.route('/delete_selected_calendar_events', methods=['POST'])
+def delete_selected_calendar_events():
+    """Delete calendar events for selected cases"""
+    try:
+        data = request.json
+        cases = data.get('cases', [])
+        
+        if not cases:
+            return jsonify({'error': 'No cases provided'}), 400
+        
+        cinos = [case.get('cino') for case in cases if case.get('cino')]
+        
+        from calendar_utils import delete_events_by_cinos
+        result = delete_events_by_cinos(cinos)
+        
+        return jsonify({
+            'message': f'Deleted {result["deleted"]} calendar events',
+            'deleted': result['deleted'],
+            'failed': result['failed']
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Delete failed: {str(e)}'}), 500
+
+@app.route('/delete_all_cases_and_calendar', methods=['POST'])
+def delete_all_cases_and_calendar():
+    """Delete all cases from database and calendar events"""
+    try:
+        print("🧹 Starting complete deletion of all cases and calendar events...")
+        
+        data = request.json
+        confirmation = data.get('confirmation', '')
+        
+        if confirmation != 'DELETE_ALL_FOREVER':
+            return jsonify({
+                'error': 'Invalid confirmation. Please type "DELETE_ALL_FOREVER" to confirm.'
+            }), 400
+        
+        # Create backup first
+        try:
+            backup_path = db.backup_data_before_clear()
+            print(f"✅ Backup created: {backup_path}")
+        except Exception as backup_error:
+            print(f"⚠️ Backup creation failed: {backup_error}")
+            backup_path = None
+        
+        # Delete calendar events
+        from calendar_utils import delete_court_events_by_summary_or_description
+        calendar_result = delete_court_events_by_summary_or_description()
+        
+        # Delete all database cases
+        db_result = db.delete_all_cases_permanently()
+        
+        # Clear local files
+        from calendar_utils import clear_local_case_files
+        file_result = clear_local_case_files()
+        
+        return jsonify({
+            'message': 'All cases and calendar events deleted successfully',
+            'calendar_deleted': calendar_result.get('deleted', 0),
+            'cases_deleted': db_result.get('cases_deleted', 0),
+            'history_deleted': db_result.get('history_deleted', 0),
+            'files_deleted': file_result.get('total_deleted', 0),
+            'backup_path': backup_path,
+            'success': True
+        })
+        
+    except Exception as e:
+        error_msg = f'Complete deletion failed: {str(e)}'
+        print(f"💥 {error_msg}")
+        return jsonify({'error': error_msg, 'success': False}), 500
+
+@app.route('/mark_multiple_as_reviewed', methods=['POST'])
+def mark_multiple_as_reviewed():
+    """Mark multiple cases as reviewed from All Cases tab"""
+    try:
+        data = request.json
+        cinos = data.get('cinos', [])
+        
+        if not cinos:
+            return jsonify({'error': 'No cases specified'}), 400
+            
+        marked_count = db.mark_multiple_cases_as_reviewed(cinos)
+        
+        return jsonify({
+            'message': f'Successfully marked {marked_count} cases as reviewed',
+            'marked_count': marked_count
+        })
+        
+    except Exception as e:
+        print(f"Mark multiple as reviewed error: {e}")
+        return jsonify({'error': f'Failed to mark cases: {str(e)}'}), 500
+
+@app.route('/remove_from_reviewed_only', methods=['POST'])
+def remove_from_reviewed_only():
+    """Remove cases from reviewed section only (keep notes)"""
+    try:
+        data = request.json
+        cinos = data.get('cinos', [])
+        
+        if not cinos:
+            return jsonify({'error': 'No cases specified'}), 400
+            
+        removed_count = db.remove_from_reviewed_keep_notes(cinos)
+        
+        return jsonify({
+            'message': f'Successfully removed {removed_count} cases from reviewed section',
+            'removed_count': removed_count
+        })
+        
+    except Exception as e:
+        print(f"Remove from reviewed only error: {e}")
+        return jsonify({'error': f'Remove failed: {str(e)}'}), 500
+
+@app.route('/mark_cases_processed', methods=['POST'])
+def mark_cases_processed():
+    """Mark cases as processed after calendar actions"""
+    try:
+        data = request.json
+        cinos = data.get('cinos', [])
+        action_type = data.get('action_type', 'processed')
+        processed_at = data.get('processed_at')
+        
+        if not cinos:
+            return jsonify({'error': 'No cases specified'}), 400
+        
+        # Mark cases as processed in database
+        processed_count = db.mark_cases_as_processed(cinos, action_type, processed_at)
+        
+        return jsonify({
+            'message': f'Successfully marked {processed_count} cases as processed',
+            'processed_count': processed_count,
+            'action_type': action_type
+        })
+        
+    except Exception as e:
+        print(f"Mark cases as processed error: {e}")
+        return jsonify({'error': f'Failed to mark as processed: {str(e)}'}), 500
+
 
 @app.route('/calendar_progress')
 def calendar_progress():
     """Get calendar creation progress"""
     try:
         cases = db.get_all_cases()
-
         stats = {
             'total_cases': len(cases),
             'cases_with_notes': len([c for c in cases if c.get('user_notes', '').strip()]),
@@ -297,9 +706,9 @@ def calendar_progress():
                 c.get('user_notes', '').strip()
             )])
         }
-
+        
         return jsonify(stats)
-
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -325,7 +734,9 @@ def upcoming_hearings():
         
         # Sort by hearing date
         upcoming_cases.sort(key=lambda x: x.get('date_next_list', ''))
+        
         return jsonify(upcoming_cases)
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -364,7 +775,6 @@ def reviewed_cases():
     try:
         reviewed = db.get_reviewed_cases_with_notes()
         return render_template('reviewed_cases.html', cases=reviewed)
-
     except Exception as e:
         print(f"Reviewed cases error: {e}")
         return jsonify({'error': str(e)}), 500
@@ -375,13 +785,11 @@ def calendar_events_preview():
     try:
         # Get court events for preview
         events = get_court_events_for_deletion()
-
         return jsonify({
-            'events': events[:50], # Limit to first 50 for preview
+            'events': events[:50],  # Limit to first 50 for preview
             'total_count': len(events),
             'message': f'Found {len(events)} court events that can be deleted'
         })
-
     except Exception as e:
         print(f"Calendar preview error: {e}")
         return jsonify({'error': f'Failed to preview events: {str(e)}'}), 500
@@ -391,18 +799,18 @@ def delete_calendar_events():
     """Delete all court calendar events with enhanced debugging"""
     try:
         print("🚀 Starting calendar deletion process...")
-
+        
         data = request.json
         deletion_method = data.get('method', 'auto')
         event_ids = data.get('event_ids', [])
-
+        
         if deletion_method == 'by_ids' and event_ids:
             print(f"🎯 Deleting specific events by ID: {len(event_ids)} events")
             result = delete_events_by_ids(event_ids)
         else:
             print("🔄 Auto-deleting all court events")
             result = delete_court_events_by_summary_or_description()
-
+        
         # Check for errors in result
         if 'error' in result:
             print(f"❌ Deletion failed: {result['error']}")
@@ -412,10 +820,10 @@ def delete_calendar_events():
                 'failed': result.get('failed', 0),
                 'total_processed': result.get('total_processed', 0)
             }), 500
-
+        
         success_message = f"Successfully processed {result['total_processed']} events: {result['deleted']} deleted, {result['failed']} failed"
         print(f"✅ {success_message}")
-
+        
         return jsonify({
             'message': success_message,
             'deleted': result['deleted'],
@@ -423,7 +831,7 @@ def delete_calendar_events():
             'total_processed': result['total_processed'],
             'batches_processed': result.get('batches_processed', 1)
         })
-
+        
     except Exception as e:
         error_msg = f'Calendar deletion failed: {str(e)}'
         print(f"💥 {error_msg}")
@@ -431,45 +839,32 @@ def delete_calendar_events():
         traceback.print_exc()
         return jsonify({'error': error_msg}), 500
 
-@app.route('/calendar_deletion_progress')
-def calendar_deletion_progress():
-    """Get real-time progress of calendar deletion (for future websocket implementation)"""
-    try:
-        # This would be enhanced with websockets for real-time updates
-        # For now, return current status
-        return jsonify({
-            'status': 'idle',
-            'message': 'No deletion in progress'
-        })
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/complete_system_cleanup', methods=['POST'])
 def complete_system_cleanup_route():
     """Complete system cleanup: calendar + database + files"""
     try:
         print("🧹 Starting complete system cleanup...")
-
+        
         # Perform complete cleanup
         result = complete_system_cleanup()
-
+        
         if result.get('total_success', False):
             success_message = "Complete system cleanup successful!"
-
+            
             # Build detailed message
             calendar_deleted = result.get('calendar_deletion', {}).get('deleted', 0)
             database_deleted = result.get('database_cleanup', {}).get('cases_deleted', 0)
             files_deleted = result.get('file_cleanup', {}).get('total_deleted', 0)
-
+            
             detailed_message = f"""
 🎉 System Cleanup Complete!
+
 📅 Calendar Events: {calendar_deleted} deleted
 🗄️ Database Records: {database_deleted} deleted
 📁 Local Files: {files_deleted} deleted
 {f"💾 Backup saved: {result.get('backup_created', 'N/A')}" if result.get('backup_created') else ""}
-"""
-
+            """
+            
             return jsonify({
                 'message': success_message,
                 'detailed_message': detailed_message,
@@ -479,7 +874,6 @@ def complete_system_cleanup_route():
                 'backup_path': result.get('backup_created'),
                 'success': True
             })
-
         else:
             # Partial success or failure
             error_parts = []
@@ -489,13 +883,13 @@ def complete_system_cleanup_route():
                 error_parts.append(f"Database: {result['database_cleanup']['error']}")
             if result.get('file_cleanup', {}).get('total_failed', 0) > 0:
                 error_parts.append(f"Files: {result['file_cleanup']['total_failed']} failed")
-
+            
             return jsonify({
                 'error': 'Partial cleanup failure: ' + '; '.join(error_parts),
                 'result': result,
                 'success': False
             }), 500
-
+            
     except Exception as e:
         error_msg = f'Complete cleanup failed: {str(e)}'
         print(f"💥 {error_msg}")
@@ -508,24 +902,23 @@ def clear_local_data():
     """Clear only local database and files (not calendar)"""
     try:
         print("🗑️ Clearing local data only...")
-
+        
         # Create backup first
-        db = CaseDatabase()
         backup_path = db.backup_data_before_clear()
-
+        
         # Clear database
         db_result = db.clear_all_data()
-
+        
         # Clear local files
         file_result = clear_local_case_files()
-
+        
         return jsonify({
             'message': f'Local data cleared: {db_result.get("cases_deleted", 0)} cases, {file_result.get("total_deleted", 0)} files',
             'database_result': db_result,
             'file_result': file_result,
             'backup_path': backup_path
         })
-
+        
     except Exception as e:
         print(f"Clear local data error: {e}")
         return jsonify({'error': f'Failed to clear local data: {str(e)}'}), 500
@@ -536,11 +929,32 @@ def reviewed_cases_data():
     try:
         reviewed_cases = db.get_reviewed_cases_with_notes()
         return jsonify(reviewed_cases)
-
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/fix_data_state', methods=['POST'])
+def fix_data_state():
+    """Fix existing data state for proper reviewed/pending logic"""
+    try:
+        fixed_count = db.fix_existing_cases_state()
+        return jsonify({
+            'message': f'Fixed {fixed_count} cases to proper state',
+            'fixed_count': fixed_count
+        })
+    except Exception as e:
+        return jsonify({'error': f'Fix failed: {str(e)}'}), 500
+
+
+
+
+
+
+
+
+
+# Add other necessary routes...
 if __name__ == '__main__':
-    print("Starting e-Courts Case Management System...")
+    print("Starting Law Firm Case Management System...")
     print(f"Secret key configured: {'Yes' if app.secret_key else 'No'}")
     app.run(debug=True, port=5000, host='0.0.0.0')

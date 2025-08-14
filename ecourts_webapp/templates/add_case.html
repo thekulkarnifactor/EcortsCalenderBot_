@@ -1,0 +1,218 @@
+{% extends "base.html" %} {% block title %}Add New Case - Law Firm Case Management{% endblock %} {% block content %}
+
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-6 fw-bold text-primary mb-0">
+                        <i class="fas fa-plus me-2"></i>Add New Case
+                    </h1>
+                    <p class="text-muted mb-0">Add a new case to the law firm management system</p>
+                </div>
+                <div>
+                    <a href="/dashboard" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Case Form -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-primary text-white py-3">
+                    <h4 class="card-title mb-0">
+                        <i class="fas fa-file-plus me-2"></i>Case Information
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    <form id="addCaseForm">
+                        <div class="row">
+                            <!-- CINO -->
+                            <div class="col-md-6 mb-3">
+                                <label for="cino" class="form-label">CINO <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="cino" required placeholder="e.g., MHPU020038842022">
+                            </div>
+
+                            <!-- Case Number -->
+                            <div class="col-md-6 mb-3">
+                                <label for="case_no" class="form-label">Case Number <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="case_no" required placeholder="e.g., 202700010262022">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Petitioner Name -->
+                            <div class="col-md-6 mb-3">
+                                <label for="petparty_name" class="form-label">Petitioner Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="petparty_name" required placeholder="Enter petitioner name">
+                            </div>
+
+                            <!-- Respondent Name -->
+                            <div class="col-md-6 mb-3">
+                                <label for="resparty_name" class="form-label">Respondent Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="resparty_name" required placeholder="Enter respondent name">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- User Side -->
+                            <div class="col-md-6 mb-3">
+                                <label for="user_side" class="form-label">Our Client Side</label>
+                                <select class="form-control" id="user_side">
+                                    <option value="">Select side</option>
+                                    <option value="petitioner">Petitioner</option>
+                                    <option value="respondent">Respondent</option>
+                                </select>
+                            </div>
+
+                            <!-- Case Type -->
+                            <div class="col-md-6 mb-3">
+                                <label for="type_name" class="form-label">Case Type</label>
+                                <input type="text" class="form-control" id="type_name" placeholder="e.g., Civil, Criminal, Family">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Court -->
+                            <div class="col-md-6 mb-3">
+                                <label for="court_no_desg_name" class="form-label">Court</label>
+                                <input type="text" class="form-control" id="court_no_desg_name" placeholder="Enter court name">
+                            </div>
+
+                            <!-- Next Hearing Date -->
+                            <div class="col-md-6 mb-3">
+                                <label for="date_next_list" class="form-label">Next Hearing Date</label>
+                                <input type="date" class="form-control" id="date_next_list">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- State -->
+                            <div class="col-md-6 mb-3">
+                                <label for="state_name" class="form-label">State</label>
+                                <input type="text" class="form-control" id="state_name" placeholder="Enter state">
+                            </div>
+
+                            <!-- District -->
+                            <div class="col-md-6 mb-3">
+                                <label for="district_name" class="form-label">District</label>
+                                <input type="text" class="form-control" id="district_name" placeholder="Enter district">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Establishment -->
+                            <div class="col-md-12 mb-3">
+                                <label for="establishment_name" class="form-label">Establishment</label>
+                                <input type="text" class="form-control" id="establishment_name" placeholder="Enter establishment name">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Purpose -->
+                            <div class="col-md-12 mb-3">
+                                <label for="purpose_name" class="form-label">Purpose/Stage</label>
+                                <input type="text" class="form-control" id="purpose_name" placeholder="e.g., Arguments, Evidence, Judgment">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Notes -->
+                            <div class="col-md-12 mb-3">
+                                <label for="user_notes" class="form-label">Case Notes</label>
+                                <textarea class="form-control" id="user_notes" rows="4" placeholder="Add any relevant notes about this case"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-outline-secondary me-md-2" onclick="window.location.href='/dashboard'">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </button>
+                            <button type="submit" class="btn btn-success" id="submitBtn">
+                                <i class="fas fa-plus me-2"></i>Add Case
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('addCaseForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const formData = {
+            cino: document.getElementById('cino').value,
+            case_no: document.getElementById('case_no').value,
+            petparty_name: document.getElementById('petparty_name').value,
+            resparty_name: document.getElementById('resparty_name').value,
+            user_side: document.getElementById('user_side').value,
+            type_name: document.getElementById('type_name').value,
+            court_no_desg_name: document.getElementById('court_no_desg_name').value,
+            date_next_list: document.getElementById('date_next_list').value,
+            state_name: document.getElementById('state_name').value,
+            district_name: document.getElementById('district_name').value,
+            establishment_name: document.getElementById('establishment_name').value,
+            purpose_name: document.getElementById('purpose_name').value,
+            user_notes: document.getElementById('user_notes').value
+        };
+
+        const submitBtn = document.getElementById('submitBtn');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding...';
+
+        fetch('/add_case', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                showAlert('Case added successfully!', 'success');
+
+                setTimeout(() => {
+                    window.location.href = '/dashboard';
+                }, 2000);
+            })
+            .catch(error => {
+                showAlert('Failed to add case: ' + error.message, 'danger');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            });
+    });
+
+    function showAlert(message, type) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+        document.body.appendChild(alertDiv);
+
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
+</script>
+
+{% endblock %}

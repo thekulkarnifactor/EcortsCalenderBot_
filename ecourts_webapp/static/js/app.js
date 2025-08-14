@@ -1,23 +1,121 @@
-// e-Courts Case Management JavaScript
-
-// Global state management
+// Law Firm Case Management JavaScript - FIXED CALENDAR VERSION
 let pendingChanges = new Set();
-let alertTimeout;
-let currentFilters = {
-    text: '',
-    dateFrom: '',
-    dateTo: '',
-    advanced: {}
-};
-let filteredCases = [];
+let selectedCases = new Set();
 let allCasesData = [];
+let currentFilters = { text: '', dateFrom: '', dateTo: '', advanced: {} };
+let currentTab = 'all-cases';
+let filterMemory = {}; // Store filter state per tab
 
+// Initialize everything when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing Law Firm Case Management...');
+    
+    initializeSearch();
+    setupNotesChangeHandlers();
+    
+    console.log('App initialized successfully');
+});
+
+// Tab switching with filter memory
+function switchTab(tabId) {
+    console.log('Switching to tab:', tabId);
+    
+    // Save current filter state for current tab
+    if (currentTab) {
+        filterMemory[currentTab] = {
+            text: document.getElementById('searchInput')?.value || '',
+            dateFrom: document.getElementById('dateFromInput')?.value || '',
+            dateTo: document.getElementById('dateToInput')?.value || '',
+            activeFilter: getActiveFilterButton()
+        };
+    }
+    
+    // Update current tab
+    currentTab = tabId;
+    
+    // Clear selections when switching tabs
+    selectedCases.clear();
+    updateBulkActions();
+    
+    // Restore filters for new tab
+    if (filterMemory[tabId]) {
+        const savedFilters = filterMemory[tabId];
+        
+        // Restore input values
+        const searchInput = document.getElementById('searchInput');
+        const dateFromInput = document.getElementById('dateFromInput');
+        const dateToInput = document.getElementById('dateToInput');
+        
+        if (searchInput) searchInput.value = savedFilters.text;
+        if (dateFromInput) dateFromInput.value = savedFilters.dateFrom;
+        if (dateToInput) dateToInput.value = savedFilters.dateTo;
+        
+        // Restore active filter button
+        document.querySelectorAll('#dateFilterGroup .btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        if (savedFilters.activeFilter) {
+            const activeBtn = document.querySelector(`[onclick="setDateFilter('${savedFilters.activeFilter}')"]`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+            }
+        }
+        
+        // Update current filters
+        currentFilters = {
+            text: savedFilters.text,
+            dateFrom: savedFilters.dateFrom,
+            dateTo: savedFilters.dateTo,
+            advanced: {}
+        };
+        
+        // Apply filters
+        setTimeout(() => {
+            filterCases();
+        }, 100);
+    } else {
+        // Clear filters for new tab
+        clearAllFilters();
+    }
+    
+    // Update toggle button text
+    updateToggleButtonText(tabId);
+}
+
+function getActiveFilterButton() {
+    const activeBtn = document.querySelector('#dateFilterGroup .btn.active');
+    if (activeBtn) {
+        const onclick = activeBtn.getAttribute('onclick');
+        if (onclick) {
+            const match = onclick.match(/setDateFilter\('(.+?)'\)/);
+            return match ? match[1] : null;
+        }
+    }
+    return null;
+}
+
+function updateToggleButtonText(tabId) {
+    const toggleTexts = {
+        'all-cases': 'toggleAllText',
+        'petitioner-cases': 'togglePetitionerText',
+        'respondent-cases': 'toggleRespondentText',
+        'unassigned-cases': 'toggleUnassignedText',
+        'upcoming-cases': 'toggleUpcomingText',
+        'reviewed-cases': 'toggleReviewedText'
+    };
+    
+    // Reset all toggle texts
+    Object.values(toggleTexts).forEach(textId => {
+        const element = document.getElementById(textId);
+        if (element) element.textContent = 'Select All';
+    });
+}
 
 // Initialize search functionality
 function initializeSearch() {
-    console.log('Initializing search...');
+    console.log('Search initialized');
     
-    // Get all case cards and create searchable data
     allCasesData = Array.from(document.querySelectorAll('.case-card')).map(card => {
         const container = card.closest('.col-xl-4, .col-lg-6');
         return {
@@ -36,627 +134,20 @@ function initializeSearch() {
     console.log(`Search initialized with ${allCasesData.length} cases`);
 }
 
-// Extract date from card for filtering
 function extractDateFromCard(card) {
     try {
         const detailsText = card.querySelector('.case-details')?.textContent || '';
-        const dateMatch = detailsText.match(/date_next_list[:\s]+(\d{4}-\d{2}-\d{2})/i);
+        const dateMatch = detailsText.match(/Next Hearing:\s*(\d{4}-\d{2}-\d{2})/i);
         return dateMatch ? dateMatch[1] : '';
     } catch (e) {
         return '';
     }
 }
 
-// Mark case as modified
-function markCaseModified(cino) {
-    console.log('Marking case modified:', cino);
-    
-    pendingChanges.add(cino);
-    const card = document.querySelector(`[data-cino="${cino}"]`);
-    
-    if (card) {
-        card.classList.add('border-warning');
-        card.dataset.changed = 'true';
-        
-        // Add unsaved indicator
-        let indicator = card.querySelector('.unsaved-indicator');
-        if (!indicator) {
-            indicator = document.createElement('span');
-            indicator.className = 'badge bg-warning position-absolute top-0 end-0 translate-middle unsaved-indicator';
-            indicator.textContent = 'Unsaved';
-            indicator.style.zIndex = '10';
-            card.style.position = 'relative';
-            card.appendChild(indicator);
-        }
-        
-        // Add header if not exists
-        let header = card.querySelector('.card-header');
-        if (!header) {
-            header = document.createElement('div');
-            header.className = 'card-header bg-warning text-dark';
-            header.innerHTML = '<small><i class="fas fa-exclamation-triangle me-1"></i>Modified</small>';
-            card.insertBefore(header, card.firstChild);
-        }
-    }
-    
-    updateSaveAllButton();
-}
-
-// Save individual case
-function saveCase(cino) {
-    console.log('Saving case:', cino);
-    
-    const card = document.querySelector(`[data-cino="${cino}"]`);
-    if (!card) {
-        showAlert('Case card not found', 'danger');
-        return;
-    }
-    
-    const notesInput = card.querySelector('.notes-input');
-    const notes = notesInput ? notesInput.value : '';
-    
-    const saveBtn = event.target;
-    const originalText = saveBtn.innerHTML;
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-    
-    fetch(`/case/${cino}/update`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ notes: notes })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            throw new Error(data.error);
-        }
-        
-        showAlert('Case saved successfully', 'success');
-        
-        // Clear modified status
-        pendingChanges.delete(cino);
-        card.classList.remove('border-warning', 'border-info');
-        card.dataset.changed = 'false';
-        
-        // Remove indicators
-        const indicator = card.querySelector('.unsaved-indicator');
-        if (indicator) indicator.remove();
-        
-        const header = card.querySelector('.card-header');
-        if (header) header.remove();
-        
-        updateSaveAllButton();
-    })
-    .catch(error => {
-        console.error('Save error:', error);
-        showAlert('Failed to save case: ' + error.message, 'danger');
-    })
-    .finally(() => {
-        saveBtn.disabled = false;
-        saveBtn.innerHTML = originalText;
-    });
-}
-
-// Save all cases function
-function saveAllCases() {
-    console.log('Saving all cases...');
-    
-    if (pendingChanges.size === 0) {
-        showAlert('No cases need to be saved', 'info');
-        return;
-    }
-
-    const saveAllBtn = document.getElementById('saveAllBtn');
-    if (!saveAllBtn) {
-        console.error('Save All button not found');
-        return;
-    }
-
-    // Prepare updates array
-    const updates = [];
-    pendingChanges.forEach(cino => {
-        const card = document.querySelector(`[data-cino="${cino}"]`);
-        if (card) {
-            const notesInput = card.querySelector('.notes-input');
-            const notes = notesInput ? notesInput.value : '';
-            updates.push({
-                cino: cino,
-                notes: notes
-            });
-        }
-    });
-
-    // Show loading state
-    saveAllBtn.disabled = true;
-    saveAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
-
-    fetch('/save_all', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            updates: updates
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            throw new Error(data.error);
-        }
-        
-        showAlert(data.message || 'All cases saved successfully', 'success');
-        
-        // Clear all pending changes
-        pendingChanges.clear();
-        
-        // Update all cards
-        document.querySelectorAll('.case-card[data-changed="true"]').forEach(card => {
-            card.classList.remove('border-warning', 'border-info');
-            card.dataset.changed = 'false';
-            const indicator = card.querySelector('.unsaved-indicator');
-            if (indicator) indicator.remove();
-            const header = card.querySelector('.card-header');
-            if (header) header.remove();
-        });
-        
-        updateSaveAllButton();
-        
-        // Refresh after delay
-        setTimeout(() => {
-            location.reload();
-        }, 2000);
-    })
-    .catch(error => {
-        console.error('Save all error:', error);
-        showAlert('Failed to save cases: ' + error.message, 'danger');
-    })
-    .finally(() => {
-        saveAllBtn.disabled = false;
-        updateSaveAllButton();
-    });
-}
-
-// Update Save All Button
-function updateSaveAllButton() {
-    const saveAllBtn = document.getElementById('saveAllBtn');
-    if (saveAllBtn) {
-        const count = pendingChanges.size;
-        if (count > 0) {
-            saveAllBtn.innerHTML = `<i class="fas fa-save me-2"></i>Save All Cases (${count})`;
-            saveAllBtn.classList.remove('btn-save-all');
-            saveAllBtn.classList.add('btn-warning');
-        } else {
-            saveAllBtn.innerHTML = '<i class="fas fa-save me-2"></i>Save All Cases';
-            saveAllBtn.classList.add('btn-save-all');
-            saveAllBtn.classList.remove('btn-warning');
-        }
-    }
-}
-
-// Show alert function
-function showAlert(message, type = 'info') {
-    // Remove existing alerts
-    document.querySelectorAll('.alert.position-fixed').forEach(alert => alert.remove());
-    
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    document.body.appendChild(alertDiv);
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        if (alertDiv.parentNode) {
-            alertDiv.remove();
-        }
-    }, 5000);
-}
-
-// Setup notes change handlers
-function setupNotesChangeHandlers() {
-    document.addEventListener('input', function(event) {
-        if (event.target.classList.contains('notes-input')) {
-            const card = event.target.closest('.case-card');
-            if (card) {
-                const cino = card.dataset.cino;
-                if (cino) {
-                    markCaseModified(cino);
-                }
-            }
-        }
-    });
-}
-
-// Date filter functions (add the missing ones)
+// Date filter functions
 function setDateFilter(period) {
     console.log('Setting date filter:', period);
-    // Implementation for date filtering
-    handleSearch();
-}
-
-function clearDateFilter() {
-    console.log('Clearing date filter');
-    const dateFromInput = document.getElementById('dateFromInput');
-    const dateToInput = document.getElementById('dateToInput');
     
-    if (dateFromInput) dateFromInput.value = '';
-    if (dateToInput) dateToInput.value = '';
-    
-    handleSearch();
-}
-
-function clearAllFilters() {
-    console.log('Clearing all filters');
-    const searchInput = document.getElementById('searchInput');
-    const dateFromInput = document.getElementById('dateFromInput');
-    const dateToInput = document.getElementById('dateToInput');
-    
-    if (searchInput) searchInput.value = '';
-    if (dateFromInput) dateFromInput.value = '';
-    if (dateToInput) dateToInput.value = '';
-    
-    currentFilters = { text: '', dateFrom: '', dateTo: '', advanced: {} };
-    handleSearch();
-}
-
-function handleSearch() {
-    console.log('Handling search...');
-    // Basic search implementation
-    const searchText = document.getElementById('searchInput')?.value || '';
-    // Add your search logic here
-}
-
-// Initialize everything when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded, initializing app...');
-    
-    initializeSearch();
-    setupNotesChangeHandlers();
-    updateSaveAllButton();
-    
-    console.log('App initialized successfully');
-});
-
-
-// Utility Functions
-function showAlert(message, type = 'info') {
-    clearTimeout(alertTimeout);
-    
-    // Remove existing alerts
-    document.querySelectorAll('.alert.position-fixed').forEach(alert => alert.remove());
-    
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    document.body.appendChild(alertDiv);
-    
-    alertTimeout = setTimeout(() => {
-        if (alertDiv.parentNode) {
-            alertDiv.remove();
-        }
-    }, 5000);
-}
-
-function showLoading() {
-    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
-    modal.show();
-}
-
-function hideLoading() {
-    const modal = bootstrap.Modal.getInstance(document.getElementById('loadingModal'));
-    if (modal) modal.hide();
-}
-
-// Case Management Functions
-function toggleChanges(cino) {
-    const changesDiv = document.getElementById(`changes-${cino}`);
-    const isVisible = changesDiv.style.display !== 'none';
-    changesDiv.style.display = isVisible ? 'none' : 'block';
-    
-    const btn = event.target.closest('button');
-    const icon = btn.querySelector('i');
-    icon.className = isVisible ? 'fas fa-eye' : 'fas fa-eye-slash';
-}
-
-function markCaseModified(cino) {
-    pendingChanges.add(cino);
-    const card = document.querySelector(`[data-cino="${cino}"]`);
-    if (card) {
-        card.classList.add('border-info');
-        
-        let indicator = card.querySelector('.unsaved-indicator');
-        if (!indicator) {
-            indicator = document.createElement('span');
-            indicator.className = 'badge bg-info position-absolute top-0 end-0 translate-middle unsaved-indicator';
-            indicator.textContent = 'Modified';
-            indicator.style.zIndex = '10';
-            card.style.position = 'relative';
-            card.appendChild(indicator);
-        }
-    }
-    updateSaveAllButton();
-}
-
-function saveCase(cino) {
-    const card = document.querySelector(`[data-cino="${cino}"]`);
-    const notesInput = card.querySelector('.notes-input');
-    const notes = notesInput ? notesInput.value : '';
-    
-    showLoading();
-    
-    fetch(`/case/${cino}/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes: notes })
-    })
-    .then(response => response.json())
-    .then(data => {
-        hideLoading();
-        showAlert('Case saved successfully', 'success');
-        
-        pendingChanges.delete(cino);
-        card.classList.remove('border-info');
-        
-        const indicator = card.querySelector('.unsaved-indicator');
-        if (indicator) indicator.remove();
-        
-        if (card.dataset.changed === 'true') {
-            card.classList.remove('border-warning');
-            card.dataset.changed = 'false';
-            
-            const header = card.querySelector('.card-header');
-            if (header) header.remove();
-            
-            updateStatistics();
-        }
-        
-        updateSaveAllButton();
-    })
-    .catch(error => {
-        hideLoading();
-        showAlert('Failed to save case: ' + error.message, 'danger');
-    });
-}
-
-function markReviewed(cino) {
-    fetch(`/case/${cino}/mark_reviewed`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-    })
-    .then(response => response.json())
-    .then(data => {
-        showAlert('Case marked as reviewed', 'success');
-        
-        const card = document.querySelector(`[data-cino="${cino}"]`);
-        card.classList.remove('border-warning');
-        card.dataset.changed = 'false';
-        
-        const header = card.querySelector('.card-header');
-        if (header) header.remove();
-        
-        updateStatistics();
-    })
-    .catch(error => {
-        showAlert('Failed to mark as reviewed: ' + error.message, 'danger');
-    });
-}
-
-function openCaseDetail(cino) {
-    window.location.href = `/case/${cino}`;
-}
-
-function updateSaveAllButton() {
-    const saveAllBtn = document.querySelector('[onclick="saveAllCases()"]');
-    if (saveAllBtn) {
-        const count = pendingChanges.size;
-        if (count > 0) {
-            saveAllBtn.innerHTML = `<i class="fas fa-save me-2"></i>Save All (${count})`;
-            saveAllBtn.classList.add('btn-warning');
-            saveAllBtn.classList.remove('btn-light');
-        } else {
-            saveAllBtn.innerHTML = '<i class="fas fa-save me-2"></i>Save All';
-            saveAllBtn.classList.remove('btn-warning');
-            saveAllBtn.classList.add('btn-light');
-        }
-    }
-}
-
-function updateStatistics() {
-    const changedCases = document.querySelectorAll('.case-card[data-changed="true"]').length;
-    const totalCases = document.querySelectorAll('.case-card').length;
-    const reviewedCases = totalCases - changedCases;
-    
-    const changedBadge = document.querySelector('#casesTabs .nav-link[href="#changed-cases"] .badge');
-    if (changedBadge) changedBadge.textContent = changedCases;
-    
-    const reviewedCount = document.querySelector('#reviewedCount');
-    if (reviewedCount) reviewedCount.textContent = reviewedCases;
-    
-    const warningCount = document.querySelector('.bg-warning h3');
-    if (warningCount) warningCount.textContent = changedCases;
-}
-
-// Enhanced Search Functionality
-function initializeSearch() {
-    allCasesData = Array.from(document.querySelectorAll('.case-card')).map(card => {
-        return {
-            element: card.closest('.col-xl-4, .col-lg-6'),
-            cino: card.dataset.cino,
-            caseNo: card.querySelector('.card-title')?.textContent || '',
-            petitioner: card.querySelector('.case-parties .col-6:first-child .fw-medium')?.textContent || '',
-            respondent: card.querySelector('.case-parties .col-6:last-child .fw-medium')?.textContent || '',
-            establishment: card.querySelector('.case-details')?.textContent || '',
-            nextDate: extractDate(card.closest('.col-xl-4, .col-lg-6')) || '',
-            isChanged: card.dataset.changed === 'true',
-            hasNotes: card.querySelector('.notes-input')?.value.trim() !== ''
-        };
-    });
-    
-    populateAdvancedSearchOptions();
-}
-
-function handleSearch() {
-    const searchText = document.getElementById('searchInput')?.value || '';
-    const dateFrom = document.getElementById('dateFromInput')?.value || '';
-    const dateTo = document.getElementById('dateToInput')?.value || '';
-    
-    currentFilters = {
-        text: searchText,
-        dateFrom: dateFrom,
-        dateTo: dateTo,
-        advanced: currentFilters.advanced || {}
-    };
-    
-    filterCases();
-}
-
-function filterCases() {
-    let visibleCount = 0;
-    
-    allCasesData.forEach(caseData => {
-        let matches = true;
-        
-        if (currentFilters.text) {
-            matches = matches && matchesTextSearch(caseData, currentFilters.text);
-        }
-        
-        if (currentFilters.dateFrom || currentFilters.dateTo) {
-            matches = matches && matchesDateRange(caseData, currentFilters.dateFrom, currentFilters.dateTo);
-        }
-        
-        if (Object.keys(currentFilters.advanced).length > 0) {
-            matches = matches && matchesAdvancedFilters(caseData, currentFilters.advanced);
-        }
-        
-        if (caseData.element) {
-            caseData.element.style.display = matches ? 'block' : 'none';
-            if (matches) visibleCount++;
-        }
-    });
-    
-    updateSearchResultsCount(visibleCount);
-    showNoResultsMessage(visibleCount === 0);
-}
-
-function matchesTextSearch(caseData, searchText) {
-    const term = searchText.toLowerCase().trim();
-    
-    // Direct field matches
-    const directMatches = [
-        caseData.caseNo.toLowerCase(),
-        caseData.petitioner.toLowerCase(),
-        caseData.respondent.toLowerCase(),
-        caseData.establishment.toLowerCase()
-    ].some(field => field.includes(term));
-    
-    if (directMatches) return true;
-    
-    // Enhanced "vs" format matching
-    if (term.includes(' vs ') || term.includes(' v ') || term.includes(' v. ')) {
-        const vsVariations = [' vs ', ' v ', ' v. ', ' versus '];
-        let petitionerPart = '';
-        let respondentPart = '';
-        
-        for (const vsFormat of vsVariations) {
-            if (term.includes(vsFormat)) {
-                const parts = term.split(vsFormat);
-                if (parts.length === 2) {
-                    petitionerPart = parts[0].trim();
-                    respondentPart = parts[1].trim();
-                    break;
-                }
-            }
-        }
-        
-        if (petitionerPart && respondentPart) {
-            const petitionerMatch = caseData.petitioner.toLowerCase().includes(petitionerPart);
-            const respondentMatch = caseData.respondent.toLowerCase().includes(respondentPart);
-            
-            const reverseMatch = caseData.petitioner.toLowerCase().includes(respondentPart) && 
-                              caseData.respondent.toLowerCase().includes(petitionerPart);
-            
-            if (petitionerMatch && respondentMatch) return true;
-            if (reverseMatch) return true;
-        }
-    }
-    
-    // Partial name matching
-    const searchWords = term.split(' ').filter(word => word.length > 2);
-    if (searchWords.length >= 2) {
-        const petitionerWords = caseData.petitioner.toLowerCase().split(' ');
-        const respondentWords = caseData.respondent.toLowerCase().split(' ');
-        
-        const allWordsInPetitioner = searchWords.every(word => 
-            petitionerWords.some(pWord => pWord.includes(word))
-        );
-        const allWordsInRespondent = searchWords.every(word => 
-            respondentWords.some(rWord => rWord.includes(word))
-        );
-        
-        if (allWordsInPetitioner || allWordsInRespondent) return true;
-    }
-    
-    return false;
-}
-
-function matchesDateRange(caseData, dateFrom, dateTo) {
-    if (!caseData.nextDate) return !dateFrom && !dateTo;
-    
-    const caseDate = new Date(caseData.nextDate);
-    
-    if (dateFrom) {
-        const fromDate = new Date(dateFrom);
-        if (caseDate < fromDate) return false;
-    }
-    
-    if (dateTo) {
-        const toDate = new Date(dateTo);
-        if (caseDate > toDate) return false;
-    }
-    
-    return true;
-}
-
-function matchesAdvancedFilters(caseData, advancedFilters) {
-    // Implementation for advanced filters
-    if (advancedFilters.caseNo && !caseData.caseNo.toLowerCase().includes(advancedFilters.caseNo.toLowerCase())) {
-        return false;
-    }
-    
-    if (advancedFilters.petitioner && !caseData.petitioner.toLowerCase().includes(advancedFilters.petitioner.toLowerCase())) {
-        return false;
-    }
-    
-    if (advancedFilters.respondent && !caseData.respondent.toLowerCase().includes(advancedFilters.respondent.toLowerCase())) {
-        return false;
-    }
-    
-    if (advancedFilters.changed && !caseData.isChanged) {
-        return false;
-    }
-    
-    if (advancedFilters.withNotes && !caseData.hasNotes) {
-        return false;
-    }
-    
-    return true;
-}
-
-// Quick date filter functions
-// Fixed setDateFilter function - Add proper event handling
-function setDateFilter(period) {
     const today = new Date();
     const dateFromInput = document.getElementById('dateFromInput');
     const dateToInput = document.getElementById('dateToInput');
@@ -698,111 +189,121 @@ function setDateFilter(period) {
     dateToInput.value = toDate;
 
     // Update button states
-    document.querySelectorAll('.btn-group .btn').forEach(btn => {
+    document.querySelectorAll('#dateFilterGroup .btn').forEach(btn => {
         btn.classList.remove('active');
     });
     
-    // Find the clicked button and mark it as active
-    const clickedBtn = event ? event.target : document.querySelector(`[onclick="setDateFilter('${period}')"]`);
-    if (clickedBtn) {
-        clickedBtn.classList.add('active');
+    if (event && event.target) {
+        event.target.classList.add('active');
+    } else {
+        const targetBtn = document.querySelector(`[onclick="setDateFilter('${period}')"]`);
+        if (targetBtn) {
+            targetBtn.classList.add('active');
+        }
     }
 
     handleSearch();
 }
-
 
 function clearDateFilter() {
-    document.getElementById('dateFromInput').value = '';
-    document.getElementById('dateToInput').value = '';
+    const dateFromInput = document.getElementById('dateFromInput');
+    const dateToInput = document.getElementById('dateToInput');
     
-    document.querySelectorAll('.btn-group .btn').forEach(btn => {
+    if (dateFromInput) dateFromInput.value = '';
+    if (dateToInput) dateToInput.value = '';
+    
+    document.querySelectorAll('#dateFilterGroup .btn').forEach(btn => {
         btn.classList.remove('active');
     });
     
     handleSearch();
-}
-
-// Advanced search functions
-function showAdvancedSearch() {
-    const modal = new bootstrap.Modal(document.getElementById('advancedSearchModal'));
-    modal.show();
-}
-
-function populateAdvancedSearchOptions() {
-    // Extract unique values for dropdowns
-    const establishments = [...new Set(allCasesData.map(c => {
-        const text = c.establishment;
-        if (text) {
-            const match = text.match(/establishment_name[:\s]+([^\n]+)/i);
-            return match ? match[1].trim() : '';
-        }
-        return '';
-    }).filter(Boolean))];
-    
-    populateSelect('advEstablishment', establishments);
-}
-
-function populateSelect(selectId, options) {
-    const select = document.getElementById(selectId);
-    if (!select) return;
-    
-    while (select.children.length > 1) {
-        select.removeChild(select.lastChild);
-    }
-    
-    options.forEach(option => {
-        const optElement = document.createElement('option');
-        optElement.value = option;
-        optElement.textContent = option;
-        select.appendChild(optElement);
-    });
-}
-
-function applyAdvancedSearch() {
-    const advancedFilters = {
-        caseNo: document.getElementById('advCaseNo')?.value || '',
-        cino: document.getElementById('advCino')?.value || '',
-        petitioner: document.getElementById('advPetitioner')?.value || '',
-        respondent: document.getElementById('advRespondent')?.value || '',
-        vsFormat: document.getElementById('advVsFormat')?.value || '',
-        establishment: document.getElementById('advEstablishment')?.value || '',
-        changed: document.getElementById('advChanged')?.checked || false,
-        withNotes: document.getElementById('advWithNotes')?.checked || false,
-        reviewed: document.getElementById('advReviewed')?.checked || false
-    };
-    
-    currentFilters.advanced = advancedFilters;
-    filterCases();
-    
-    const modal = bootstrap.Modal.getInstance(document.getElementById('advancedSearchModal'));
-    if (modal) modal.hide();
-    
-    showAppliedFiltersIndicator();
-}
-
-function clearAdvancedSearch() {
-    document.querySelectorAll('#advancedSearchModal input, #advancedSearchModal select').forEach(input => {
-        if (input.type === 'checkbox') {
-            input.checked = false;
-        } else {
-            input.value = '';
-        }
-    });
 }
 
 function clearAllFilters() {
-    document.getElementById('searchInput').value = '';
-    document.getElementById('dateFromInput').value = '';
-    document.getElementById('dateToInput').value = '';
+    const searchInput = document.getElementById('searchInput');
+    const dateFromInput = document.getElementById('dateFromInput');
+    const dateToInput = document.getElementById('dateToInput');
+    
+    if (searchInput) searchInput.value = '';
+    if (dateFromInput) dateFromInput.value = '';
+    if (dateToInput) dateToInput.value = '';
     
     currentFilters = { text: '', dateFrom: '', dateTo: '', advanced: {} };
     
-    document.querySelectorAll('.btn-group .btn.active').forEach(btn => {
+    document.querySelectorAll('#dateFilterGroup .btn.active').forEach(btn => {
         btn.classList.remove('active');
     });
     
+    handleSearch();
+}
+
+function handleSearch() {
+    console.log('Handling search...');
+    const searchText = document.getElementById('searchInput')?.value || '';
+    const dateFrom = document.getElementById('dateFromInput')?.value || '';
+    const dateTo = document.getElementById('dateToInput')?.value || '';
+
+    currentFilters = {
+        text: searchText,
+        dateFrom: dateFrom,
+        dateTo: dateTo,
+        advanced: currentFilters.advanced || {}
+    };
+
     filterCases();
+}
+
+function filterCases() {
+    let visibleCount = 0;
+    
+    // Get cases from current active tab
+    const activeTabPane = document.querySelector('.tab-pane.active');
+    if (!activeTabPane) return;
+    
+    const casesToFilter = activeTabPane.querySelectorAll('.case-card');
+    
+    casesToFilter.forEach(card => {
+        const container = card.closest('.col-xl-4, .col-lg-6');
+        if (!container) return;
+        
+        let matches = true;
+        const caseData = {
+            caseNo: card.querySelector('.card-title')?.textContent || '',
+            petitioner: card.querySelector('.case-parties .col-6:first-child .fw-medium')?.textContent || '',
+            respondent: card.querySelector('.case-parties .col-6:last-child .fw-medium')?.textContent || '',
+            establishment: card.querySelector('.case-details')?.textContent || '',
+            nextDate: extractDateFromCard(card) || ''
+        };
+
+        // Text search
+        if (currentFilters.text) {
+            const searchTerm = currentFilters.text.toLowerCase();
+            matches = matches && (
+                caseData.caseNo.toLowerCase().includes(searchTerm) ||
+                caseData.petitioner.toLowerCase().includes(searchTerm) ||
+                caseData.respondent.toLowerCase().includes(searchTerm) ||
+                caseData.establishment.toLowerCase().includes(searchTerm)
+            );
+        }
+
+        // Date range filter
+        if ((currentFilters.dateFrom || currentFilters.dateTo) && caseData.nextDate) {
+            const caseDate = new Date(caseData.nextDate);
+            if (currentFilters.dateFrom) {
+                const fromDate = new Date(currentFilters.dateFrom);
+                if (caseDate < fromDate) matches = false;
+            }
+            if (currentFilters.dateTo) {
+                const toDate = new Date(currentFilters.dateTo);
+                if (caseDate > toDate) matches = false;
+            }
+        }
+
+        container.style.display = matches ? 'block' : 'none';
+        if (matches) visibleCount++;
+    });
+
+    updateSearchResultsCount(visibleCount);
 }
 
 function updateSearchResultsCount(count) {
@@ -813,543 +314,606 @@ function updateSearchResultsCount(count) {
     }
 }
 
-function showNoResultsMessage(show) {
-    let noResultsMsg = document.getElementById('noResultsMessage');
+// Mark case as reviewed - FIXED to work without notes
+function markAsReviewed(cino) {
+    console.log('Marking case as reviewed:', cino);
     
-    if (show && !noResultsMsg) {
-        noResultsMsg = document.createElement('div');
-        noResultsMsg.id = 'noResultsMessage';
-        noResultsMsg.className = 'col-12 text-center py-5';
-        noResultsMsg.innerHTML = `
-            <div class="alert alert-info">
-                <i class="fas fa-search fa-2x mb-3"></i>
-                <h5>No cases found</h5>
-                <p class="mb-0">Try adjusting your search criteria or clearing filters.</p>
-                <button class="btn btn-outline-primary btn-sm mt-2" onclick="clearAllFilters()">
-                    Clear All Filters
-                </button>
-            </div>
-        `;
-        
-        const activeTab = document.querySelector('.tab-pane.active .row');
-        if (activeTab) {
-            activeTab.appendChild(noResultsMsg);
-        }
-    } else if (!show && noResultsMsg) {
-        noResultsMsg.remove();
-    }
-}
-
-function showAppliedFiltersIndicator() {
-    let indicator = document.getElementById('filtersIndicator');
-    if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.id = 'filtersIndicator';
-        indicator.className = 'alert alert-info alert-sm mt-2';
-        indicator.innerHTML = `
-            <i class="fas fa-filter me-2"></i>Advanced filters applied
-            <button class="btn btn-sm btn-outline-info ms-2" onclick="clearAllFilters()">
-                Clear All
-            </button>
-        `;
-        document.querySelector('.row.mb-3').appendChild(indicator);
-    }
-}
-
-function exportFilteredCases() {
-    const visibleCases = allCasesData.filter(caseData => 
-        caseData.element.style.display !== 'none'
-    );
+    const card = document.querySelector(`[data-cino="${cino}"]`);
+    const notesInput = card?.querySelector('.notes-input');
+    const notes = notesInput ? notesInput.value : '';
     
-    if (visibleCases.length === 0) {
-        showAlert('No cases to export', 'warning');
-        return;
-    }
+    const saveBtn = event.target.closest('button');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
     
-    const csvData = [
-        ['Case No', 'CINO', 'Petitioner', 'Respondent', 'Next Date', 'Establishment', 'Notes']
-    ];
-    
-    visibleCases.forEach(caseData => {
-        const notes = caseData.element.querySelector('.notes-input')?.value || '';
-        
-        csvData.push([
-            caseData.caseNo,
-            caseData.cino,
-            caseData.petitioner,
-            caseData.respondent,
-            caseData.nextDate,
-            caseData.establishment.replace(/\n/g, ' ').trim(),
-            notes
-        ]);
-    });
-    
-    const csv = csvData.map(row => 
-        row.map(field => `"${field.toString().replace(/"/g, '""')}"`).join(',')
-    ).join('\n');
-    
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `filtered-cases-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    showAlert(`Exported ${visibleCases.length} cases to CSV`, 'success');
-}
-
-function extractDate(element) {
-    const dateText = element.querySelector('.case-details')?.textContent || '';
-    const dateMatch = dateText.match(/\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4}|\d{2}-\d{2}-\d{4}/);
-    return dateMatch ? dateMatch[0] : '';
-}
-
-// Calendar Management Functions
-function createCalendarEvents() {
-    if (!confirm('Create calendar events for all cases with valid dates?\n\nThis will create events for cases that have a next hearing date set.')) {
-        return;
-    }
-    
-    showCalendarCreationProgress();
-    
-    fetch('/calendar_progress')
-    .then(response => response.json())
-    .then(progressData => {
-        updateCalendarProgressDisplay(progressData);
-        
-        return fetch('/create_calendar_events', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
+    fetch(`/case/${cino}/update`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            notes: notes
+        })
     })
     .then(response => response.json())
     .then(data => {
-        hideCalendarCreationProgress();
-        
         if (data.error) {
-            showAlert(`Calendar creation failed: ${data.error}`, 'danger');
-        } else {
-            const detailedMessage = `Calendar Updated Successfully!\n\n` +
-                `ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ ${data.created} events created\n` +
-                `ÃƒÆ’Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒâ€šÃ‚Â© ${data.skipped} events skipped (duplicates/invalid)\n` +
-                `ÃƒÆ’Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒâ€¦Ã¢â‚¬â„¢ ${data.failed} events failed\n` +
-                `ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒâ€šÃ‚Â ${data.cases_with_notes} cases had notes\n` +
-                `ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ ${data.cases_without_notes} cases without notes`;
-            
-            showAlert(detailedMessage, 'success');
-            
-            if (data.excel_file) {
-                setTimeout(() => {
-                    showAlert('ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒâ€šÃ‚Â Reference file created: ' + data.excel_file, 'info');
-                }, 3000);
-            }
+            throw new Error(data.error);
         }
+        
+        showAlert('Case marked as reviewed successfully', 'success');
+        
+        // Update UI immediately
+        card.dataset.changed = 'false';
+        card.classList.remove('border-warning');
+        
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
     })
     .catch(error => {
-        hideCalendarCreationProgress();
-        showAlert('Calendar creation failed: ' + error.message, 'danger');
+        console.error('Mark as reviewed error:', error);
+        showAlert('Failed to mark as reviewed: ' + error.message, 'danger');
+    })
+    .finally(() => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
     });
 }
 
-function showCalendarCreationProgress() {
-    const modal = `
-        <div class="modal fade" id="calendarCreationModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header bg-primary text-white">
-                        <h5 class="modal-title">
-                            <i class="fas fa-calendar-plus me-2"></i>Creating Calendar Events
-                        </h5>
-                    </div>
-                    <div class="modal-body">
-                        <div id="calendarProgressContent">
-                            <div class="text-center">
-                                <div class="spinner-border text-primary mb-3"></div>
-                                <p>Analyzing cases and creating events...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
+function removeFromReviewed(cino) {
+    if (!confirm('Remove this case from reviewed? It will appear in pending cases again.')) {
+        return;
+    }
     
-    document.body.insertAdjacentHTML('beforeend', modal);
-    const creationModal = new bootstrap.Modal(document.getElementById('calendarCreationModal'));
-    creationModal.show();
-}
-
-function updateCalendarProgressDisplay(data) {
-    const content = `
-        <h6>Calendar Creation Analysis:</h6>
-        <div class="row text-center mb-3">
-            <div class="col-3">
-                <div class="h4 text-primary">${data.total_cases}</div>
-                <small class="text-muted">Total Cases</small>
-            </div>
-            <div class="col-3">
-                <div class="h4 text-success">${data.cases_with_dates}</div>
-                <small class="text-muted">With Dates</small>
-            </div>
-            <div class="col-3">
-                <div class="h4 text-info">${data.cases_with_notes}</div>
-                <small class="text-muted">With Notes</small>
-            </div>
-            <div class="col-3">
-                <div class="h4 text-warning">${data.ready_for_calendar}</div>
-                <small class="text-muted">Ready</small>
-            </div>
-        </div>
-        <div class="progress mb-3">
-            <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
-                 style="width: ${(data.cases_with_dates/data.total_cases)*100}%"></div>
-        </div>
-        <p class="small text-muted text-center">
-            <i class="fas fa-cog fa-spin me-2"></i>Processing ${data.cases_with_dates} cases...
-        </p>
-    `;
-    
-    document.getElementById('calendarProgressContent').innerHTML = content;
-}
-
-function hideCalendarCreationProgress() {
-    const modal = bootstrap.Modal.getInstance(document.getElementById('calendarCreationModal'));
-    if (modal) {
-        modal.hide();
+    fetch('/toggle_case_selection', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            cinos: [cino],
+            action: 'remove_from_reviewed'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        showAlert('Case removed from reviewed section', 'success');
+        
         setTimeout(() => {
-            const modalElement = document.getElementById('calendarCreationModal');
-            if (modalElement) {
-                modalElement.remove();
-            }
-        }, 500);
+            location.reload();
+        }, 1000);
+    })
+    .catch(error => {
+        showAlert('Failed to remove from reviewed: ' + error.message, 'danger');
+    });
+}
+
+// FIXED: Single toggle selection function
+function toggleAllSelection(tabId) {
+    const container = getContainerByTabId(tabId);
+    const checkboxes = container.querySelectorAll('.case-selection');
+    const toggleBtn = event?.target?.closest('button');
+    const toggleText = toggleBtn?.querySelector('span');
+    
+    if (!toggleText) {
+        console.error('Toggle button or text not found');
+        return;
+    }
+    
+    const isSelectAll = toggleText.textContent.trim() === 'Select All';
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = isSelectAll;
+        if (isSelectAll) {
+            selectedCases.add(checkbox.dataset.cino);
+        } else {
+            selectedCases.delete(checkbox.dataset.cino);
+        }
+    });
+    
+    toggleText.textContent = isSelectAll ? 'Deselect All' : 'Select All';
+    updateBulkActions();
+}
+
+function getContainerByTabId(tabId) {
+    switch(tabId) {
+        case 'all-cases': return document.getElementById('allCasesContainer');
+        case 'petitioner-cases': return document.getElementById('petitionerCasesContainer');
+        case 'respondent-cases': return document.getElementById('respondentCasesContainer');
+        case 'unassigned-cases': return document.getElementById('unassignedCasesContainer');
+        case 'upcoming-cases': return document.getElementById('upcomingCasesContainer');
+        case 'reviewed-cases': return document.getElementById('reviewedCasesContainer');
+        default: return document.getElementById('allCasesContainer');
     }
 }
 
-// Calendar Deletion Functions
-function showDeleteCalendarModal() {
-    const modal = new bootstrap.Modal(document.getElementById('deleteCalendarModal'));
-    modal.show();
+function updateCaseSelection() {
+    selectedCases.clear();
+    const checkedBoxes = document.querySelectorAll('.case-selection:checked');
+    checkedBoxes.forEach(checkbox => {
+        selectedCases.add(checkbox.dataset.cino);
+    });
     
-    document.getElementById('eventsPreview').style.display = 'none';
-    document.getElementById('cleanupProgress').style.display = 'none';
-    document.getElementById('previewBtn').style.display = 'inline-block';
-    document.getElementById('cleanupBtn').style.display = 'none';
+    updateBulkActions();
 }
 
-function previewCleanup() {
-    const selectedOption = document.querySelector('input[name="cleanupOption"]:checked').value;
-    const previewBtn = document.getElementById('previewBtn');
-    const cleanupBtn = document.getElementById('cleanupBtn');
+function updateBulkActions() {
+    const count = selectedCases.size;
+    const container = document.getElementById('bulkActionsContainer');
+    const text = document.getElementById('selectedCasesText');
+    const markBtn = document.getElementById('bulkMarkReviewedBtn');
+    const removeBtn = document.getElementById('bulkRemoveReviewedBtn');
+    const calendarBtn = document.getElementById('bulkCalendarBtn');
     
-    previewBtn.disabled = true;
-    previewBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Loading...';
-    
-    if (selectedOption === 'complete' || selectedOption === 'calendar') {
-        fetch('/calendar_events_preview')
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                showAlert(data.error, 'danger');
-                return;
-            }
-            
-            displayEventsPreview(data.events, data.total_count);
-            document.getElementById('eventsPreview').style.display = 'block';
-        })
-        .catch(error => {
-            showAlert('Failed to preview events: ' + error.message, 'danger');
-        })
-        .finally(() => {
-            previewBtn.disabled = false;
-            previewBtn.innerHTML = '<i class="fas fa-eye me-2"></i>Preview';
-            previewBtn.style.display = 'none';
-            cleanupBtn.style.display = 'inline-block';
-            cleanupBtn.innerHTML = '<i class="fas fa-trash me-2"></i>' + getCleanupButtonText(selectedOption);
-        });
+    if (count > 0) {
+        container.style.display = 'block';
+        text.textContent = `${count} case${count > 1 ? 's' : ''} selected`;
+        if (markBtn) markBtn.disabled = false;
+        if (removeBtn) removeBtn.disabled = false;
+        if (calendarBtn) calendarBtn.disabled = false;
     } else {
-        previewBtn.disabled = false;
-        previewBtn.innerHTML = '<i class="fas fa-eye me-2"></i>Preview';
-        previewBtn.style.display = 'none';
-        cleanupBtn.style.display = 'inline-block';
-        cleanupBtn.innerHTML = '<i class="fas fa-trash me-2"></i>' + getCleanupButtonText(selectedOption);
+        container.style.display = 'none';
     }
 }
 
-function getCleanupButtonText(option) {
-    switch(option) {
-        case 'complete': return 'Complete Cleanup';
-        case 'calendar': return 'Delete Calendar Only';
-        case 'local': return 'Clear Local Data Only';
-        default: return 'Start Cleanup';
+function executeBulkAction(action) {
+    if (selectedCases.size === 0) {
+        showAlert('Please select at least one case', 'warning');
+        return;
     }
-}
-
-function confirmCleanup() {
-    const selectedOption = document.querySelector('input[name="cleanupOption"]:checked').value;
     
-    let confirmMessage = 'Are you absolutely sure?\n\n';
-    switch(selectedOption) {
-        case 'complete':
-            confirmMessage += 'This will delete ALL calendar events, database records, and local files. This action cannot be undone!';
-            break;
-        case 'calendar':
-            confirmMessage += 'This will delete ALL court events from your Google Calendar only.';
-            break;
-        case 'local':
-            confirmMessage += 'This will delete all local database records and files only.';
-            break;
+    let confirmMessage = '';
+    if (action === 'mark_reviewed') {
+        confirmMessage = `Mark ${selectedCases.size} cases as reviewed?`;
+    } else if (action === 'remove_from_reviewed') {
+        confirmMessage = `Remove ${selectedCases.size} cases from reviewed section?`;
     }
     
     if (!confirm(confirmMessage)) {
         return;
     }
     
-    document.getElementById('eventsPreview').style.display = 'none';
-    document.getElementById('cleanupProgress').style.display = 'block';
-    document.getElementById('cleanupBtn').style.display = 'none';
-    document.getElementById('cancelBtn').textContent = 'Close';
-    
-    executeCleanup(selectedOption);
-}
-
-function executeCleanup(option) {
-    const progressBar = document.getElementById('overallProgressBar');
-    const currentStepText = document.getElementById('currentStepText');
-    
-    progressBar.style.width = '10%';
-    currentStepText.textContent = 'Starting cleanup process...';
-    
-    let endpoint;
-    let requestBody = {};
-    
-    switch(option) {
-        case 'complete':
-            endpoint = '/complete_system_cleanup';
-            break;
-        case 'calendar':
-            endpoint = '/delete_calendar_events';
-            requestBody = { method: 'auto' };
-            break;
-        case 'local':
-            endpoint = '/clear_local_data';
-            break;
-    }
-    
-    fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            showAlert(data.error, 'danger');
-            currentStepText.textContent = 'Cleanup failed. Please try again.';
-            progressBar.classList.remove('progress-bar-animated');
-            progressBar.classList.add('bg-danger');
-            return;
-        }
-        
-        updateCleanupProgress(data, option);
-        
-        setTimeout(() => {
-            const message = data.detailed_message || data.message;
-            showAlert(message, 'success');
-            
-            setTimeout(() => {
-                const modal = bootstrap.Modal.getInstance(document.getElementById('deleteCalendarModal'));
-                if (modal) modal.hide();
-                
-                setTimeout(() => location.reload(), 1000);
-            }, 3000);
-        }, 1000);
-    })
-    .catch(error => {
-        showAlert('Cleanup failed: ' + error.message, 'danger');
-        currentStepText.textContent = 'Cleanup failed. Please try again.';
-        progressBar.classList.remove('progress-bar-animated');
-        progressBar.classList.add('bg-danger');
-    });
-}
-
-function updateCleanupProgress(data, option) {
-    const progressBar = document.getElementById('overallProgressBar');
-    const currentStepText = document.getElementById('currentStepText');
-    const deletedCount = document.getElementById('deletedCount');
-    const databaseCount = document.getElementById('databaseCount');
-    const filesCount = document.getElementById('filesCount');
-
-    if (option === 'complete') {
-        updateStepStatus('backupStep', 'success');
-        updateStepStatus('calendarStep', 'success');
-        updateStepStatus('databaseStep', 'success');
-        updateStepStatus('filesStep', 'success');
-
-        deletedCount.textContent = data.calendar_deleted || 0;
-        databaseCount.textContent = data.database_deleted || 0;
-        filesCount.textContent = data.files_deleted || 0;
-    } else if (option === 'calendar') {
-        updateStepStatus('calendarStep', 'success');
-        deletedCount.textContent = data.deleted || 0;
-    } else if (option === 'local') {
-        updateStepStatus('databaseStep', 'success');
-        updateStepStatus('filesStep', 'success');
-        
-        var databaseDeleted = (data.database_result && data.database_result.cases_deleted) ? data.database_result.cases_deleted : 0;
-        var filesDeleted = (data.file_result && data.file_result.total_deleted) ? data.file_result.total_deleted : 0;
-        
-        databaseCount.textContent = databaseDeleted;
-        filesCount.textContent = filesDeleted;
-    }
-
-    progressBar.style.width = '100%';
-    progressBar.classList.remove('progress-bar-animated');
-    currentStepText.textContent = 'Cleanup completed successfully!';
-}
-
-function updateStepStatus(stepId, status) {
-    const step = document.getElementById(stepId);
-    if (step) {
-        step.classList.remove('text-muted');
-        if (status === 'success') {
-            step.classList.add('text-success');
-            const icon = step.querySelector('i');
-            if (icon) {
-                icon.className = 'fas fa-check-circle fa-2x mb-2';
-            }
-        } else if (status === 'warning') {
-            step.classList.add('text-warning');
-            const icon = step.querySelector('i');
-            if (icon) {
-                icon.className = 'fas fa-spinner fa-spin fa-2x mb-2';
-            }
-        }
-    }
-}
-
-function displayEventsPreview(events, totalCount) {
-    const eventsList = document.getElementById('eventsList');
-    const previewCount = document.getElementById('previewCount');
-    const totalEventsNote = document.getElementById('totalEventsNote');
-    
-    previewCount.textContent = totalCount;
-    totalEventsNote.textContent = totalCount > 50 ? '(showing first 50)' : '';
-    
-    if (events.length === 0) {
-        eventsList.innerHTML = '<div class="text-center text-muted">No court events found to delete.</div>';
-        return;
-    }
-    
-    const eventsHtml = events.map(function(event) {
-        return `
-            <div class="border-bottom py-2">
-                <div class="fw-bold">${event.summary || 'No Title'}</div>
-                <div class="text-muted small">
-                    <i class="fas fa-calendar me-1"></i>${event.start || 'No Date'}
-                </div>
-                ${event.description ? `<div class="text-muted small">${event.description}</div>` : ''}
-            </div>
-        `;
-    }).join('');
-    
-    eventsList.innerHTML = eventsHtml;
-}
-
-function saveAllCases() {
-    const saveAllBtn = document.getElementById('saveAllBtn');
-    if (!saveAllBtn) {
-        console.error('Save All button not found');
-        return;
-    }
-    
-    if (pendingChanges.size === 0) {
-        showAlert('No cases need to be saved', 'info');
-        return;
-    }
-
-    // Prepare updates array
-    const updates = [];
-    pendingChanges.forEach(cino => {
-        const card = document.querySelector(`[data-cino="${cino}"]`);
-        if (card) {
-            const notesInput = card.querySelector('.notes-input');
-            const notes = notesInput ? notesInput.value : '';
-            updates.push({
-                cino: cino,
-                notes: notes,
-                fields: {} // Add other fields if needed
-            });
-        }
-    });
-
-    // Show loading state
-    saveAllBtn.disabled = true;
-    saveAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
-
-    fetch('/save_all', {
+    fetch('/toggle_case_selection', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            updates: updates
+            cinos: Array.from(selectedCases),
+            action: action
         })
     })
     .then(response => response.json())
     .then(data => {
-        showAlert(data.message || 'All cases saved successfully', 'success');
+        if (data.error) {
+            throw new Error(data.error);
+        }
         
-        // Clear all pending changes
-        pendingChanges.clear();
+        const message = action === 'mark_reviewed' 
+            ? `Successfully marked ${data.marked_count || data.removed_count} cases as reviewed`
+            : `Successfully removed ${data.removed_count || data.marked_count} cases from reviewed section`;
+            
+        showAlert(message, 'success');
         
-        // Update all cards
-        document.querySelectorAll('.case-card[data-changed="true"]').forEach(card => {
-            card.classList.remove('border-warning', 'border-info');
-            card.dataset.changed = 'false';
-            const indicator = card.querySelector('.unsaved-indicator');
-            if (indicator) indicator.remove();
-            const header = card.querySelector('.card-header');
-            if (header) header.remove();
-        });
-        
-        updateSaveAllButton();
-        updateStatistics();
-        
-        // Refresh the page after a short delay to show updated data
         setTimeout(() => {
             location.reload();
-        }, 2000);
+        }, 1500);
     })
     .catch(error => {
-        showAlert('Failed to save cases: ' + error.message, 'danger');
-    })
-    .finally(() => {
-        saveAllBtn.disabled = false;
-        updateSaveAllButton();
+        showAlert('Bulk action failed: ' + error.message, 'danger');
     });
 }
 
-// Update Save All Button appearance - Fixed
-function updateSaveAllButton() {
-    const saveAllBtn = document.getElementById('saveAllBtn');
-    if (saveAllBtn) {
-        const count = pendingChanges.size;
-        if (count > 0) {
-            saveAllBtn.innerHTML = `<i class="fas fa-save me-2"></i>Save All Cases (${count})`;
-            saveAllBtn.classList.remove('btn-save-all');
-            saveAllBtn.classList.add('btn-warning');
-        } else {
-            saveAllBtn.innerHTML = '<i class="fas fa-save me-2"></i>Save All Cases';
-            saveAllBtn.classList.add('btn-save-all');
-            saveAllBtn.classList.remove('btn-warning');
+// User side selection modal
+function showUserSideModal(cino, currentSide) {
+    const modalHtml = `
+        <div class="modal fade" id="userSideModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Select Client Side</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Which side does your law firm represent in this case?</p>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-info btn-lg" onclick="updateUserSide('${cino}', 'petitioner')">
+                                <i class="fas fa-user-tie me-2"></i>Petitioner
+                            </button>
+                            <button class="btn btn-warning btn-lg" onclick="updateUserSide('${cino}', 'respondent')">
+                                <i class="fas fa-user-shield me-2"></i>Respondent
+                            </button>
+                        </div>
+                        ${currentSide ? `<p class="mt-3 text-muted">Currently set as: <strong>${currentSide}</strong></p>` : ''}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal
+    const existing = document.getElementById('userSideModal');
+    if (existing) existing.remove();
+    
+    // Add new modal
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('userSideModal'));
+    modal.show();
+}
+
+function updateUserSide(cino, userSide) {
+    fetch(`/case/${cino}/update_user_side`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            user_side: userSide
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
         }
+        
+        showAlert(`Client side updated to ${userSide}`, 'success');
+        
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('userSideModal'));
+        if (modal) modal.hide();
+        
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
+    })
+    .catch(error => {
+        showAlert('Failed to update client side: ' + error.message, 'danger');
+    });
+}
+
+// FIXED: Calendar functions with proper selection handling
+function showCalendarActionModal() {
+    console.log('📅 Opening calendar action modal');
+    console.log('📊 Selected cases:', Array.from(selectedCases));
+    
+    // Get current tab to determine context
+    const activeTab = document.querySelector('.nav-link.active');
+    const tabText = activeTab ? activeTab.textContent.trim().split('\n')[0] : 'Unknown';
+    
+    // Count all cases in current tab
+    const activeTabPane = document.querySelector('.tab-pane.active');
+    const allCasesInTab = activeTabPane ? activeTabPane.querySelectorAll('.case-card').length : 0;
+    
+    // Populate modal with proper counts and options
+    const modalCount = document.getElementById('modalSelectedCount');
+    const modalAllCount = document.getElementById('modalAllCount');
+    const modalTabName = document.getElementById('modalTabName');
+    const casesList = document.getElementById('selectedCasesList');
+    
+    if (modalCount) modalCount.textContent = selectedCases.size;
+    if (modalAllCount) modalAllCount.textContent = allCasesInTab;
+    if (modalTabName) modalTabName.textContent = tabText;
+    
+    // Show different options based on selection
+    const hasSelection = selectedCases.size > 0;
+    const selectedOptions = document.getElementById('selectedCasesOptions');
+    const allCasesOptions = document.getElementById('allCasesOptions');
+    
+    if (selectedOptions) {
+        selectedOptions.style.display = hasSelection ? 'block' : 'none';
+    }
+    if (allCasesOptions) {
+        allCasesOptions.style.display = 'block';
+    }
+    
+    // Update button counts
+    const selectedCountBadge = document.getElementById('selectedCountBadge');
+    const allCountBadge = document.getElementById('allCountBadge');
+    if (selectedCountBadge) selectedCountBadge.textContent = selectedCases.size;
+    if (allCountBadge) allCountBadge.textContent = allCasesInTab;
+    
+    // Populate selected cases list
+    if (casesList && hasSelection) {
+        let casesHtml = '';
+        let casesWithDates = 0;
+        
+        selectedCases.forEach(cino => {
+            const card = document.querySelector(`[data-cino="${cino}"]`);
+            if (card) {
+                const title = card.querySelector('.card-title')?.textContent || cino;
+                const nextHearing = extractDateFromCard(card) || 'Not scheduled';
+                
+                if (nextHearing !== 'Not scheduled' && nextHearing !== '') {
+                    casesWithDates++;
+                }
+                
+                casesHtml += `
+                    <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                        <div>
+                            <strong>${title}</strong>
+                            <div class="small text-muted">CINO: ${cino}</div>
+                        </div>
+                        <span class="badge ${nextHearing === 'Not scheduled' ? 'bg-warning' : 'bg-info'}">${nextHearing}</span>
+                    </div>
+                `;
+            }
+        });
+        
+        casesList.innerHTML = casesHtml;
+        
+        // Update cases with dates count
+        const selectedWithDatesSpan = document.getElementById('selectedWithDates');
+        if (selectedWithDatesSpan) {
+            selectedWithDatesSpan.textContent = casesWithDates;
+        }
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('calendarActionModal'));
+    modal.show();
+}
+
+function executeCalendarAction(action, scope = 'selected') {
+    console.log('📅 Executing calendar action:', action, 'scope:', scope);
+    
+    let casesToProcess = [];
+    let filterType = '';
+    
+    if (scope === 'selected') {
+        if (selectedCases.size === 0) {
+            showAlert('No cases selected', 'warning');
+            return;
+        }
+        
+        // FIXED: Get ONLY selected cases data
+        selectedCases.forEach(cino => {
+            const card = document.querySelector(`[data-cino="${cino}"]`);
+            const caseData = extractCaseDataFromCard(card);
+            if (caseData) {
+                casesToProcess.push(caseData);
+            }
+        });
+        
+        filterType = 'selected_cases_only';
+        
+    } else if (scope === 'all') {
+        // Get all cases from current tab
+        const activeTabPane = document.querySelector('.tab-pane.active');
+        if (activeTabPane) {
+            const allCards = activeTabPane.querySelectorAll('.case-card');
+            allCards.forEach(card => {
+                const caseData = extractCaseDataFromCard(card);
+                if (caseData) {
+                    casesToProcess.push(caseData);
+                }
+            });
+        }
+        
+        filterType = 'current_tab_all';
+    }
+    
+    console.log('📊 Processing', casesToProcess.length, 'cases');
+    console.log('📋 Cases to process:', casesToProcess.map(c => c.cino));
+    
+    if (casesToProcess.length === 0) {
+        showAlert('No cases to process', 'warning');
+        return;
+    }
+    
+    if (action === 'create') {
+        // Show progress modal
+        showCalendarCreationProgress({
+            total_cases: casesToProcess.length,
+            cases_with_dates: casesToProcess.filter(c => c.date_next_list && c.date_next_list !== 'Not scheduled').length,
+            scope: scope
+        });
+        
+        // FIXED: Send ONLY the selected cases to backend
+        fetch('/create_calendar_events', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                filter: filterType,
+                cases: casesToProcess,  // FIXED: Send only selected cases
+                scope: scope
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideCalendarCreationProgress();
+            
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            showAlert(`Calendar events created: ${data.created} created, ${data.updated || 0} updated`, 'success');
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('calendarActionModal'));
+            if (modal) modal.hide();
+            
+            // If we processed selected reviewed cases, remove them after success
+            if (scope === 'selected' && currentTab === 'reviewed-cases') {
+                setTimeout(() => {
+                    removeSelectedFromReviewed();
+                }, 1500);
+            }
+        })
+        .catch(error => {
+            hideCalendarCreationProgress();
+            showAlert('Calendar creation failed: ' + error.message, 'danger');
+        });
+        
+    } else if (action === 'delete') {
+        const confirmMessage = scope === 'selected' 
+            ? `Delete calendar events for ${casesToProcess.length} selected cases?`
+            : `Delete calendar events for all ${casesToProcess.length} cases in current tab?`;
+            
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        
+        fetch('/delete_selected_calendar_events', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                cases: casesToProcess,
+                scope: scope
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            showAlert(`Deleted ${data.deleted} calendar events`, 'success');
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('calendarActionModal'));
+            if (modal) modal.hide();
+        })
+        .catch(error => {
+            showAlert('Delete failed: ' + error.message, 'danger');
+        });
     }
 }
 
-// Add notes change handler
+function removeSelectedFromReviewed() {
+    if (selectedCases.size === 0) return;
+    
+    fetch('/toggle_case_selection', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            cinos: Array.from(selectedCases),
+            action: 'remove_from_reviewed'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        showAlert(`Removed ${data.removed_count} cases from reviewed section`, 'success');
+        
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
+    })
+    .catch(error => {
+        console.error('Remove from reviewed error:', error);
+    });
+}
+
+// Utility functions
+function extractCaseDataFromCard(card) {
+    try {
+        const cino = card.dataset.cino;
+        const title = card.querySelector('.card-title')?.textContent || '';
+        const caseDetails = card.querySelector('.case-details')?.textContent || '';
+        const parties = card.querySelector('.case-parties');
+        const notesInput = card.querySelector('.notes-input');
+        
+        let petparty_name = '';
+        let resparty_name = '';
+        
+        if (parties) {
+            const partyElements = parties.querySelectorAll('.fw-medium');
+            if (partyElements.length >= 2) {
+                petparty_name = partyElements[0].textContent.trim();
+                resparty_name = partyElements[1].textContent.trim();
+            }
+        }
+        
+        const hearingMatch = caseDetails.match(/Next Hearing:\s*(\d{4}-\d{2}-\d{2})/i);
+        const dateNextList = hearingMatch ? hearingMatch[1] : '';
+        
+        return {
+            cino: cino,
+            case_no: title,
+            petparty_name: petparty_name,
+            resparty_name: resparty_name,
+            establishment_name: extractFromDetails(caseDetails, 'Establishment') || '',
+            date_next_list: dateNextList,
+            purpose_name: extractFromDetails(caseDetails, 'Purpose') || '',
+            court_no_desg_name: extractFromDetails(caseDetails, 'Court') || '',
+            user_notes: notesInput ? notesInput.value : ''
+        };
+        
+    } catch (error) {
+        console.error('Error extracting case data:', error);
+        return null;
+    }
+}
+
+function extractFromDetails(text, field) {
+    const regex = new RegExp(`${field}:\\s*([^\\n]+)`, 'i');
+    const match = text.match(regex);
+    return match ? match[1].trim() : '';
+}
+
+// Progress functions
+function showCalendarCreationProgress(data) {
+    console.log('📊 Showing calendar progress for', data.total_cases, 'cases');
+    
+    let modal = document.getElementById('calendarCreationModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = 'calendarCreationModal';
+        modal.innerHTML = `
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-body text-center p-4" id="calendarProgressContent">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Creating...</span>
+                        </div>
+                        <h6>Creating Calendar Events</h6>
+                        <p class="mb-0">Processing <strong>${data.cases_with_dates}</strong> cases with hearing dates...</p>
+                        <small class="text-muted">${data.scope === 'selected' ? 'Selected cases only' : 'All cases in current tab'}</small>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    const bootstrapModal = new bootstrap.Modal(modal);
+    bootstrapModal.show();
+}
+
+function hideCalendarCreationProgress() {
+    const modal = document.getElementById('calendarCreationModal');
+    if (modal) {
+        const bootstrapModal = bootstrap.Modal.getInstance(modal);
+        if (bootstrapModal) {
+            bootstrapModal.hide();
+        }
+        // Remove modal from DOM after hiding
+        setTimeout(() => {
+            if (modal.parentNode) {
+                modal.remove();
+            }
+        }, 500);
+    }
+}
+
 function setupNotesChangeHandlers() {
     document.addEventListener('input', function(event) {
         if (event.target.classList.contains('notes-input')) {
@@ -1364,103 +928,79 @@ function setupNotesChangeHandlers() {
     });
 }
 
-// Enhanced initialization
-function initializeApp() {
-    initializeSearch();
-    setupNotesChangeHandlers();
-    updateSaveAllButton();
-    
-    // Add click handlers for date filter buttons
-    document.querySelectorAll('[onclick^="setDateFilter"]').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const period = this.getAttribute('onclick').match(/'([^']+)'/)[1];
-            setDateFilter(period);
-        });
-    });
-    
-    // Add click handler for clear date filter
-    const clearDateBtn = document.querySelector('[onclick="clearDateFilter()"]');
-    if (clearDateBtn) {
-        clearDateBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            clearDateFilter();
-        });
-    }
-    
-    // Add click handler for clear all filters
-    const clearAllBtn = document.querySelector('[onclick="clearAllFilters()"]');
-    if (clearAllBtn) {
-        clearAllBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            clearAllFilters();
-        });
-    }
+function markCaseModified(cino) {
+    pendingChanges.add(cino);
 }
 
-
-// Initialize when document loads
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize the app
-    initializeApp();
-    
-    // Date filter buttons
-    document.querySelectorAll('[data-period]').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const period = this.getAttribute('data-period');
-            setDateFilter(period);
-        });
-    });
-    
-    // Clear dates button
-    const clearDatesBtn = document.getElementById('clearDatesBtn');
-    if (clearDatesBtn) {
-        clearDatesBtn.addEventListener('click', clearDateFilter);
-    }
-    
-    // Clear all filters button
-    const clearAllBtn = document.getElementById('clearAllBtn');
-    if (clearAllBtn) {
-        clearAllBtn.addEventListener('click', clearAllFilters);
-    }
-    
-    // Save All button - make sure it's properly connected
-    const saveAllBtn = document.getElementById('saveAllBtn');
-    if (saveAllBtn) {
-        saveAllBtn.addEventListener('click', saveAllCases);
-    }
-});
-
-// Fixed clearDateFilter function
-function clearDateFilter() {
-    const dateFromInput = document.getElementById('dateFromInput');
-    const dateToInput = document.getElementById('dateToInput');
-    
-    if (dateFromInput) dateFromInput.value = '';
-    if (dateToInput) dateToInput.value = '';
-    
-    document.querySelectorAll('.btn-group .btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    
-    handleSearch();
+function openCaseDetail(cino) {
+    window.location.href = `/case/${cino}`;
 }
 
-// Fixed clearAllFilters function  
-function clearAllFilters() {
-    const searchInput = document.getElementById('searchInput');
-    const dateFromInput = document.getElementById('dateFromInput');
-    const dateToInput = document.getElementById('dateToInput');
+function showAlert(message, type = 'info') {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
     
-    if (searchInput) searchInput.value = '';
-    if (dateFromInput) dateFromInput.value = '';
-    if (dateToInput) dateToInput.value = '';
+    document.body.appendChild(alertDiv);
     
-    currentFilters = { text: '', dateFrom: '', dateTo: '', advanced: {} };
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
+// Delete all functionality
+function showDeleteAllModal() {
+    const modal = new bootstrap.Modal(document.getElementById('deleteAllModal'));
+    modal.show();
+}
+
+function validateDeletionForm() {
+    const confirmationText = document.getElementById('confirmationText')?.value;
+    const checkboxes = document.querySelectorAll('#deleteAllModal .form-check-input');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
     
-    document.querySelectorAll('.btn-group .btn.active').forEach(btn => {
-        btn.classList.remove('active');
+    const isValid = confirmationText === 'DELETE_ALL_FOREVER' && allChecked;
+    
+    const btn = document.getElementById('confirmDeleteAllBtn');
+    if (btn) btn.disabled = !isValid;
+}
+
+function executeDeleteAll() {
+    if (!confirm('This is your FINAL WARNING!\n\nAre you absolutely sure?')) {
+        return;
+    }
+    
+    fetch('/delete_all_cases_and_calendar', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            confirmation: 'DELETE_ALL_FOREVER'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        showAlert('All cases and calendar events deleted successfully!', 'success');
+        
+        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteAllModal'));
+        if (modal) modal.hide();
+        
+        setTimeout(() => {
+            window.location.href = '/upload_page';
+        }, 3000);
+    })
+    .catch(error => {
+        showAlert('Deletion failed: ' + error.message, 'danger');
     });
-    
-    filterCases();
 }

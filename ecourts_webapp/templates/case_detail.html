@@ -26,9 +26,32 @@
                             <p class="mb-1"><strong>Type:</strong> {{ case.type_name }}</p>
                         </div>
                         <div class="col-md-6">
-                            <p class="mb-1"><strong>Next Hearing:</strong>
-                                <span class="badge bg-info">{{ case.date_next_list or 'Not scheduled' }}</span>
-                            </p>
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <strong>Next Hearing Date:</strong>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="editHearingDate('{{ case.cino }}')">
+                                        <i class="fas fa-edit me-1"></i>Edit Date
+                                    </button>
+                                </div>
+                                <div class="hearing-date-container">
+                                    <span id="hearing-date-{{ case.cino }}" class="badge bg-info fs-6 py-2 px-3">
+                                        {{ case.date_next_list or 'Not scheduled' }}
+                                    </span>
+                                    <input type="date" id="hearing-date-input-{{ case.cino }}" class="form-control" value="{{ case.date_next_list if case.date_next_list and case.date_next_list != 'Not scheduled' else '' }}" style="display: none; max-width: 200px;" onchange="updateHearingDate('{{ case.cino }}', this.value)"
+                                        onblur="updateHearingDate('{{ case.cino }}', this.value)" onkeydown="if(event.key==='Escape') cancelEditHearingDate('{{ case.cino }}')">
+
+                                    <!-- Save/Cancel buttons for better UX -->
+                                    <div id="hearing-date-actions-{{ case.cino }}" class="mt-2" style="display: none;">
+                                        <button class="btn btn-sm btn-success me-2" onclick="saveHearingDate('{{ case.cino }}')">
+                                            <i class="fas fa-check me-1"></i>Save
+                                        </button>
+                                        <button class="btn btn-sm btn-secondary" onclick="cancelEditHearingDate('{{ case.cino }}')">
+                                            <i class="fas fa-times me-1"></i>Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <p class="mb-1"><strong>Purpose:</strong> {{ case.purpose_name }}</p>
                         </div>
                     </div>

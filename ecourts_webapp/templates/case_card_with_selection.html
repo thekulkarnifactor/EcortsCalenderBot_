@@ -1,0 +1,71 @@
+<!-- Case Card with Selection Checkbox - FIXED VERSION -->
+<div class="col-xl-4 col-lg-6 mb-3">
+    <div class="case-card border border-light" data-cino="{{ case.cino }}" data-changed="{{ case.is_changed|lower }}">
+
+        <!-- Selection checkbox -->
+        <div class="selection-checkbox">
+            <input type="checkbox" class="form-check-input case-selection" id="select-{{ case.cino }}" data-cino="{{ case.cino }}" onchange="updateSelectedCases()">
+            <label class="form-check-label" for="select-{{ case.cino }}"></label>
+        </div>
+
+        <!-- User Side Badge from Database - RIGHT SIDE -->
+        <div class="user-side-badge-container">
+            {% if case.user_side == 'petitioner' %}
+            <span class="user-side-badge petitioner">Petitioner</span> {% elif case.user_side == 'respondent' %}
+            <span class="user-side-badge respondent">Respondent</span> {% else %}
+            <span class="user-side-badge not-set">Not Set</span> {% endif %}
+        </div>
+
+        <div class="card-body">
+            <h6 class="card-title">{{ case.case_no }}</h6>
+
+            <!-- Case Parties -->
+            <div class="case-parties row mb-2">
+                <div class="col-6">
+                    <small class="text-muted">Petitioner:</small>
+                    <div class="fw-medium">{{ case.petparty_name }}</div>
+                </div>
+                <div class="col-6">
+                    <small class="text-muted">Respondent:</small>
+                    <div class="fw-medium">{{ case.resparty_name }}</div>
+                </div>
+            </div>
+
+            <!-- Case Details -->
+            <div class="case-details">
+                <p class="mb-1"><strong>Next Hearing:</strong>
+                    <span class="badge bg-info">{{ case.date_next_list or 'Not scheduled' }}</span>
+                </p>
+                <p class="mb-1"><strong>Court:</strong> {{ case.court_no_desg_name }}</p>
+                <p class="mb-1"><strong>Purpose:</strong> {{ case.purpose_name }}</p>
+                <p class="mb-0"><strong>Establishment:</strong> {{ case.establishment_name[:50] }}...</p>
+            </div>
+
+            <!-- Notes Section -->
+            <div class="notes-section">
+                <label class="form-label small">Your Notes:</label>
+                <textarea class="form-control notes-input" placeholder="Add your notes here..." onchange="markCaseModified('{{ case.cino }}')">{{ case.user_notes or '' }}</textarea>
+
+                <!-- Card Buttons - FIXED -->
+                <div class="card-buttons">
+                    <button class="btn btn-sm btn-primary" onclick="saveCase('{{ case.cino }}')">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+
+                    <!-- NEW: Quick save button for reviewed cases without notes -->
+                    {% if is_reviewed_section %}
+                    <button class="btn btn-sm btn-success" onclick="saveCase('{{ case.cino }}', true)" title="Save as reviewed without notes">
+                        <i class="fas fa-check"></i> Mark Reviewed
+                    </button> {% endif %} {% if is_reviewed_section %}
+                    <button class="btn btn-sm btn-danger" onclick="removeFromReviewed('{{ case.cino }}')">
+                        <i class="fas fa-trash-alt"></i> Remove
+                    </button> {% endif %}
+
+                    <button class="btn btn-sm btn-info" onclick="openCaseDetail('{{ case.cino }}')">
+                        <i class="fas fa-eye"></i> View
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

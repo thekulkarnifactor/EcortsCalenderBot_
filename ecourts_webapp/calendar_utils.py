@@ -7,7 +7,10 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
-SCOPES = ['https://www.googleapis.com/auth/calendar.events']
+SCOPES = [
+    'https://www.googleapis.com/auth/calendar',           # Full calendar access
+    'https://www.googleapis.com/auth/calendar.events'     # Events access
+]
 
 def google_calendar_authenticate(
     token_path: str = 'data/token_calendar.pickle',
@@ -16,21 +19,64 @@ def google_calendar_authenticate(
 ):
     """
     Authenticate and return Google Calendar API credentials.
-    Uses a fixed local port for OAuth redirection.
     """
     creds = None
+    
+    # Load existing token
     if os.path.exists(token_path):
-        with open(token_path, 'rb') as token_file:
-            creds = pickle.load(token_file)
+        try:
+            with open(token_path, 'rb') as token_file:
+                creds = pickle.load(token_file)
+                print("✅ Loaded existing credentials")
+        except Exception as e:
+            print(f"⚠️ Error loading token: {e}")
+            # Delete corrupted token
+            os.remove(token_path)
+            creds = None
 
+    # Check if credentials need refresh or are invalid
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
-            creds = flow.run_local_server(port=port)
-        with open(token_path, 'wb') as token_file:
-            pickle.dump(creds, token_file)
+            try:
+                print("🔄 Refreshing expired credentials...")
+                creds.refresh(Request())
+                print("✅ Credentials refreshed successfully")
+            except Exception as refresh_error:
+                print(f"❌ Refresh failed: {refresh_error}")
+                creds = None
+        
+        # If refresh failed or no credentials, get new ones
+        if not creds:
+            try:
+                print("🔐 Starting new authentication flow...")
+                print(f"📱 Using port: {port}")
+                
+                if not os.path.exists(creds_path):
+                    print(f"❌ Credentials file not found: {creds_path}")
+                    return None
+                
+                flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
+                creds = flow.run_local_server(
+                    port=port,
+                    access_type='offline',
+                    prompt='consent',  # Force consent to get proper scopes
+                    include_granted_scopes='true'
+                )
+                print("✅ New authentication successful")
+                
+            except Exception as auth_error:
+                print(f"❌ Authentication failed: {auth_error}")
+                return None
+
+        # Save the credentials for the next run
+        try:
+            os.makedirs(os.path.dirname(token_path), exist_ok=True)
+            with open(token_path, 'wb') as token_file:
+                pickle.dump(creds, token_file)
+                print("✅ Credentials saved successfully")
+        except Exception as save_error:
+            print(f"⚠️ Could not save credentials: {save_error}")
+
     return creds
 
 def get_existing_court_events(service, calendar_id='primary'):
@@ -75,52 +121,110 @@ def create_google_calendar_events_for_cases(
     token_path='data/token_calendar.pickle',
     creds_path='data/credentials.json',
     port=56585,
-    progress_callback=None
+    progress_callback=None,
+    additional_data=None,
+    filter_info=None
 ) -> Dict[str, int]:
     """
-    Create Google Calendar events from case data.
-    
-    Args:
-        cases_data: List of case dictionaries
-        calendar_id: Google Calendar ID
-        token_path: Path to OAuth token
-        creds_path: Path to credentials JSON
-        port: OAuth port
-        progress_callback: Function for progress updates
-    
-    Returns:
-        Dictionary with creation statistics
+    Create/Update Google Calendar events from case data.
+    FIXED: Now properly handles user_side and case number formatting.
     """
     try:
-        print("ðŸ—“ï¸ Starting calendar event creation...")
+        print("🗓️ Starting calendar event creation/update...")
         
-        # Authenticate
+        # Authenticate with better error handling
+        print("🔐 Authenticating with Google Calendar...")
         creds = google_calendar_authenticate(token_path, creds_path, port)
         if not creds:
-            return {'created': 0, 'failed': 0, 'skipped': 0, 'error': 'Authentication failed'}
+            return {
+                'created': 0,
+                'updated': 0,
+                'failed': 0,
+                'skipped': 0,
+                'error': 'Authentication failed - please check credentials'
+            }
+
+        # Test the credentials before proceeding
+        try:
+            service = build('calendar', 'v3', credentials=creds)
+            test_result = service.calendars().get(calendarId=calendar_id).execute()
+            print("✅ Calendar service authenticated and tested successfully")
+        except Exception as auth_test_error:
+            print(f"❌ Calendar service test failed: {auth_test_error}")
+            return {
+                'created': 0,
+                'updated': 0,
+                'failed': 0,
+                'skipped': 0,
+                'error': f'Calendar service authentication test failed: {str(auth_test_error)}'
+            }
+
+        # Filter cases with valid dates
+        valid_cases = []
+        for case in cases_data:
+            if (case.get('date_next_list') and 
+                case['date_next_list'] not in ['Not set', '', None, 'Not scheduled']):
+                valid_cases.append(case)
         
-        service = build('calendar', 'v3', credentials=creds)
-        print("âœ… Calendar service authenticated")
+        print(f"📅 Filtered to {len(valid_cases)} cases with valid dates from {len(cases_data)} total")
         
+        if not valid_cases:
+            return {
+                'created': 0,
+                'updated': 0,
+                'failed': 0,
+                'skipped': len(cases_data),
+                'total_processed': len(cases_data),
+                'error': 'No cases with valid dates found'
+            }
+
+        # Initialize counters
         created_count = 0
+        updated_count = 0
         failed_count = 0
         skipped_count = 0
-        
-        # Get existing events to avoid duplicates
-        print("ðŸ“‹ Checking for existing events...")
-        existing_events = get_existing_court_events(service, calendar_id)
-        existing_keys = set()
-        
-        for event in existing_events:
-            summary = event.get('summary', '').lower()
-            start_date = event.get('start', {}).get('date') or event.get('start', {}).get('dateTime', '')[:10]
-            existing_keys.add(f"{summary}|{start_date}")
-        
-        print(f"ðŸ“Š Found {len(existing_keys)} existing court events")
-        
-        # Process each case
-        for i, case in enumerate(cases_data):
+
+        # FIXED: Get existing events with better matching
+        print("📋 Checking for existing events...")
+        try:
+            existing_events = get_existing_court_events_with_cino_mapping(service, calendar_id)
+            existing_events_map = {}
+            
+            # Create a more robust mapping
+            for event in existing_events:
+                description = event.get('description', '')
+                summary = event.get('summary', '')
+                
+                # Extract CINO from description
+                cino_match = re.search(r'CINO:\s*([^\n\r]+)', description, re.IGNORECASE)
+                if cino_match:
+                    cino = cino_match.group(1).strip()
+                    existing_events_map[cino] = event
+                    print(f"📍 Mapped existing event: CINO {cino} -> Event ID {event.get('id', 'Unknown')[:10]}...")
+                
+                # Also try to match by case number if CINO fails
+                case_no_match = re.search(r'Case No:\s*([^\n\r]+)', description, re.IGNORECASE)
+                if case_no_match and not cino_match:
+                    case_no = case_no_match.group(1).strip()
+                    # Use case number as backup key
+                    backup_key = f"case_no_{case_no}"
+                    existing_events_map[backup_key] = event
+                    print(f"📍 Backup mapping: Case No {case_no} -> Event ID {event.get('id', 'Unknown')[:10]}...")
+            
+            print(f"📊 Created mapping for {len(existing_events_map)} existing court events")
+            
+        except Exception as existing_error:
+            print(f"⚠️ Warning: Could not check existing events: {existing_error}")
+            existing_events_map = {}
+
+        # Process each valid case
+        for i, case in enumerate(valid_cases):
             try:
+                cino = case.get('cino', '').strip()
+                case_no = case.get('case_no', '').strip()
+                
+                print(f"\n📝 Processing case {i+1}/{len(valid_cases)}: CINO {cino}")
+                
                 # Create event summary
                 petitioner = case.get('petparty_name', '').strip()
                 respondent = case.get('resparty_name', '').strip()
@@ -129,68 +233,91 @@ def create_google_calendar_events_for_cases(
                     if petitioner != 'XXXXXXX' and respondent != 'XXXXXXX':
                         event_title = f"{petitioner} vs {respondent}"
                     else:
-                        event_title = f"Case {case.get('case_no', 'Unknown')}"
+                        event_title = f"Case {case_no}"
                 else:
-                    event_title = f"Case {case.get('case_no', 'Unknown')}"
-                
+                    event_title = f"Case {case_no}"
+
                 # Parse next hearing date
                 next_date = case.get('date_next_list', '')
-                if not next_date or next_date in ['Not set', '', None]:
-                    print(f"â© Skipping case {case.get('case_no', 'Unknown')} - no valid date")
-                    skipped_count += 1
-                    continue
                 
-                # Convert date format if needed (handle various formats)
+                # Convert date format with better error handling
                 try:
-                    from datetime import datetime
                     if isinstance(next_date, str):
-                        # Try different date formats
                         for date_format in ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%Y/%m/%d']:
                             try:
-                                date_obj = datetime.strptime(next_date, date_format)
+                                date_obj = datetime.datetime.strptime(next_date, date_format)
                                 event_date = date_obj.strftime('%Y-%m-%d')
                                 break
                             except ValueError:
                                 continue
                         else:
-                            print(f"âš ï¸ Invalid date format for case {case.get('case_no', 'Unknown')}: {next_date}")
+                            print(f"⚠️ Invalid date format for case {case_no}: {next_date}")
                             skipped_count += 1
                             continue
                     else:
                         event_date = next_date
                 except Exception as date_error:
-                    print(f"âš ï¸ Date parsing error for case {case.get('case_no', 'Unknown')}: {date_error}")
+                    print(f"⚠️ Date parsing error for case {case_no}: {date_error}")
                     skipped_count += 1
                     continue
-                
-                # Check for duplicates
-                duplicate_key = f"{event_title.lower()}|{event_date}"
-                if duplicate_key in existing_keys:
-                    print(f"â© Skipping duplicate: {event_title} on {event_date}")
-                    skipped_count += 1
-                    continue
-                
-                # Create event description
+
+                # FIXED: Create event description with proper user side handling
                 description_parts = []
-                description_parts.append(f"case_no: {case.get('case_no', 'N/A')}")
-                description_parts.append(f"cino: {case.get('cino', 'N/A')}")
-                description_parts.append(f"state_name: {case.get('state_name', 'N/A')}")
-                description_parts.append(f"district_name: {case.get('district_name', 'N/A')}")
-                description_parts.append(f"establishment_name: {case.get('establishment_name', 'N/A')}")
-                description_parts.append(f"purpose_name: {case.get('purpose_name', 'N/A')}")
-                
-                if case.get('user_notes', '').strip():
-                    description_parts.append(f"\nYour Notes:\n{case.get('user_notes', '').strip()}")
-                
+
+                # FIXED: Get user side properly - check for actual value
+                user_side = case.get('user_side', '').strip()
+                if user_side and user_side.lower() not in ['', 'not set', 'none', 'null']:
+                    description_parts.append(f"User Side: {user_side.title()}")
+                else:
+                    description_parts.append("User Side: Not set")
+
+                # FIXED: Format case number as type_name/reg_no/reg_year
+                type_name = case.get('type_name', '').strip()
+                reg_no = case.get('reg_no', '')
+                reg_year = case.get('reg_year', '')
+
+                if type_name and reg_no and reg_year:
+                    formatted_case_no = f"{type_name}/{reg_no}/{reg_year}"
+                else:
+                    # Fallback to original case number if components are missing
+                    formatted_case_no = case.get('case_no', '')
+
+                description_parts.append(f"Case No: {formatted_case_no}")
+                description_parts.append(f"CINO: {case.get('cino', '')}")
+                description_parts.append(f"Establishment: {case.get('establishment_name', 'N/A')}")
+                description_parts.append(f"Purpose: {case.get('purpose_name', 'N/A')}")
+
+                court_info = case.get('court_no_desg_name', 'N/A')
+                description_parts.append(f"Court/Judge: {court_info}")
+
+                # FIXED: Location handling
+                state = case.get('state_name', '').strip()
+                district = case.get('district_name', '').strip()
+                if state and district:
+                    location = f"{district}, {state}"
+                elif state:
+                    location = state
+                elif district:
+                    location = district
+                else:
+                    location = "N/A"
+                description_parts.append(f"Location: {location}")
+
+                # FIXED: Notes handling with proper formatting
+                user_notes = case.get('user_notes', '').strip()
+                if user_notes:
+                    description_parts.append("Notes:")
+                    description_parts.append(user_notes)
+
                 event_description = '\n'.join(description_parts)
-                
-                # Create the event
+
+                # Create event body
                 event_body = {
                     'summary': event_title,
                     'description': event_description,
                     'start': {
                         'date': event_date,
-                        'timeZone': 'Asia/Kolkata'  # Adjust timezone as needed
+                        'timeZone': 'Asia/Kolkata'
                     },
                     'end': {
                         'date': event_date,
@@ -199,64 +326,220 @@ def create_google_calendar_events_for_cases(
                     'reminders': {
                         'useDefault': False,
                         'overrides': [
-                            {'method': 'email', 'minutes': 24 * 60},  # 1 day before
-                            {'method': 'popup', 'minutes': 60}        # 1 hour before
+                            {'method': 'email', 'minutes': 24 * 60},
+                            {'method': 'popup', 'minutes': 60}
                         ]
                     }
                 }
+
+                # FIXED LOGIC: Check if event exists and update or create
+                existing_event = None
                 
-                # Create the event
-                created_event = service.events().insert(
-                    calendarId=calendar_id, 
-                    body=event_body
-                ).execute()
+                # Try to find existing event by CINO first
+                if cino in existing_events_map:
+                    existing_event = existing_events_map[cino]
+                    print(f"🔍 Found existing event by CINO: {cino}")
                 
-                print(f"âœ… Created event #{created_count + 1}: {event_title} on {event_date}")
-                created_count += 1
+                # Try backup matching by case number
+                elif f"case_no_{case_no}" in existing_events_map:
+                    existing_event = existing_events_map[f"case_no_{case_no}"]
+                    print(f"🔍 Found existing event by Case No: {case_no}")
                 
-                # Add to existing keys to prevent duplicates in this batch
-                existing_keys.add(duplicate_key)
-                
+                if existing_event:
+                    # UPDATE existing event
+                    event_id = existing_event['id']
+                    try:
+                        print(f"🔄 Updating existing event: {event_title}")
+                        updated_event = service.events().update(
+                            calendarId=calendar_id,
+                            eventId=event_id,
+                            body=event_body
+                        ).execute()
+                        
+                        print(f"✅ Updated event #{updated_count + 1}: {event_title} on {event_date}")
+                        updated_count += 1
+                        
+                    except Exception as update_error:
+                        print(f"❌ Failed to update event for case {case_no}: {update_error}")
+                        failed_count += 1
+                else:
+                    # CREATE new event
+                    try:
+                        print(f"➕ Creating new event: {event_title}")
+                        created_event = service.events().insert(
+                            calendarId=calendar_id,
+                            body=event_body
+                        ).execute()
+                        
+                        print(f"✅ Created event #{created_count + 1}: {event_title} on {event_date}")
+                        created_count += 1
+                        
+                    except Exception as create_error:
+                        print(f"❌ Failed to create event for case {case_no}: {create_error}")
+                        failed_count += 1
+
                 # Progress callback
                 if progress_callback:
                     progress_callback({
                         'processed': i + 1,
-                        'total': len(cases_data),
+                        'total': len(valid_cases),
                         'created': created_count,
+                        'updated': updated_count,
                         'failed': failed_count,
                         'skipped': skipped_count,
                         'current_case': event_title
                     })
-                
-                # Small delay to avoid rate limiting
+
+                # Rate limiting to avoid API quotas
                 import time
-                time.sleep(0.2)
-                
+                time.sleep(0.3)
+
             except Exception as case_error:
-                print(f"âŒ Failed to create event for case {case.get('case_no', 'Unknown')}: {case_error}")
+                print(f"❌ Error processing case {case.get('case_no', 'Unknown')}: {case_error}")
                 failed_count += 1
-        
+
+        # Final results
         result = {
             'created': created_count,
+            'updated': updated_count,
             'failed': failed_count,
             'skipped': skipped_count,
-            'total_processed': len(cases_data)
+            'total_processed': len(cases_data),
+            'valid_cases_found': len(valid_cases),
+            'received_all_data': True
         }
-        
-        print(f"ðŸŽ‰ Calendar creation complete: {created_count} created, {failed_count} failed, {skipped_count} skipped")
+
+        print(f"🎉 Calendar sync complete: {created_count} created, {updated_count} updated, {failed_count} failed, {skipped_count} skipped")
         return result
-        
+
     except Exception as e:
-        print(f"ðŸ’¥ Critical error in calendar creation: {e}")
+        print(f"💥 Critical error in calendar creation: {e}")
         import traceback
         traceback.print_exc()
         return {
             'created': 0,
+            'updated': 0,
             'failed': 0,
             'skipped': 0,
             'total_processed': 0,
-            'error': f'Critical error: {str(e)}'
+            'error': f'Critical error: {str(e)}',
+            'received_all_data': True
         }
+
+def get_existing_court_events_with_cino_mapping(service, calendar_id='primary'):
+    """
+    Get existing court events with better CINO extraction for mapping.
+    FIXED: Enhanced pattern matching for better event identification.
+    """
+    try:
+        events = []
+        page_token = None
+        
+        print("📋 Fetching existing court events for mapping...")
+        
+        while True:
+            events_result = service.events().list(
+                calendarId=calendar_id,
+                pageToken=page_token,
+                maxResults=2500,
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute()
+
+            batch_events = events_result.get('items', [])
+            print(f"📊 Checking {len(batch_events)} events in this batch...")
+            
+            for event in batch_events:
+                summary = event.get('summary', '') or ''
+                description = event.get('description', '') or ''
+                
+                # Enhanced court event detection
+                is_court_event = (
+                    # Title patterns
+                    ' vs ' in summary.lower() or
+                    ' v. ' in summary.lower() or
+                    ' v ' in summary.lower() or
+                    'case ' in summary.lower() or
+                    # Description patterns
+                    'cino:' in description.lower() or
+                    'case no:' in description.lower() or
+                    'establishment:' in description.lower() or
+                    'court/judge:' in description.lower() or
+                    'user side:' in description.lower() or
+                    'purpose:' in description.lower()
+                )
+                
+                if is_court_event:
+                    events.append({
+                        'id': event.get('id'),
+                        'summary': summary,
+                        'description': description,
+                        'start': event.get('start', {}),
+                        'end': event.get('end', {}),
+                        'reminders': event.get('reminders', {})
+                    })
+                    
+                    # Debug: Show what we found
+                    if len(events) <= 5:
+                        cino_match = re.search(r'CINO:\s*([^\n\r]+)', description, re.IGNORECASE)
+                        cino = cino_match.group(1).strip() if cino_match else 'No CINO'
+                        print(f"🎯 Found court event #{len(events)}: '{summary[:30]}...' CINO: {cino}")
+
+            page_token = events_result.get('nextPageToken')
+            if not page_token:
+                break
+
+        print(f"📈 Total court events found: {len(events)}")
+        return events
+
+    except Exception as e:
+        print(f"❌ Error getting existing court events: {e}")
+        return []
+
+def get_existing_court_events_detailed(service, calendar_id='primary'):
+    """Get existing court events with detailed information for updating"""
+    try:
+        events = []
+        page_token = None
+        
+        while True:
+            events_result = service.events().list(
+                calendarId=calendar_id,
+                pageToken=page_token,
+                maxResults=2500,
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute()
+            
+            batch_events = events_result.get('items', [])
+            
+            for event in batch_events:
+                summary = event.get('summary', '') or ''
+                description = event.get('description', '') or ''
+                
+                # Check if it's a court event
+                if (' vs ' in summary.lower() or
+                    'cino:' in description.lower() or
+                    'case no:' in description.lower()):
+                    events.append({
+                        'id': event.get('id'),
+                        'summary': summary,
+                        'description': description,
+                        'start': event.get('start', {}),
+                        'end': event.get('end', {}),
+                        'reminders': event.get('reminders', {})
+                    })
+            
+            page_token = events_result.get('nextPageToken')
+            if not page_token:
+                break
+        
+        return events
+        
+    except Exception as e:
+        print(f"Error getting detailed existing events: {e}")
+        return []
+
 
 def get_court_events_for_deletion(
     calendar_id: str = 'primary',
@@ -742,3 +1025,202 @@ def complete_system_cleanup(
             'total_success': False,
             'error': str(e)
         }
+    
+def delete_events_by_cinos(
+    cinos: List[str],
+    calendar_id='primary',
+    token_path='data/token_calendar.pickle',
+    creds_path='data/credentials.json',
+    port=56585,
+    progress_callback=None
+) -> Dict[str, int]:
+    """
+    Delete calendar events by CINOs with progress tracking.
+    
+    Args:
+        cinos: List of case CINOs to find and delete events for
+        calendar_id: Google Calendar ID (default: 'primary')
+        token_path: Path to stored authentication token
+        creds_path: Path to Google credentials.json
+        port: Port for OAuth flow
+        progress_callback: Optional callback function for progress updates
+    
+    Returns:
+        Dictionary with deletion statistics
+    """
+    try:
+        print(f"🎯 Starting deletion of events for {len(cinos)} CINOs...")
+        
+        # Authenticate
+        creds = google_calendar_authenticate(token_path, creds_path, port)
+        if not creds:
+            print("❌ Authentication failed!")
+            return {
+                'deleted': 0,
+                'failed': 0,
+                'not_found': 0,
+                'total_processed': len(cinos),
+                'error': 'Authentication failed'
+            }
+        
+        service = build('calendar', 'v3', credentials=creds)
+        print("✅ Calendar service initialized")
+        
+        deleted_count = 0
+        failed_count = 0
+        not_found_count = 0
+        total_processed = 0
+        
+        # Get all existing court events first
+        print("📋 Fetching all court events...")
+        try:
+            existing_events = get_existing_court_events_detailed(service, calendar_id)
+            print(f"📊 Found {len(existing_events)} total court events")
+        except Exception as fetch_error:
+            print(f"❌ Failed to fetch existing events: {fetch_error}")
+            return {
+                'deleted': 0,
+                'failed': 0,
+                'not_found': 0,
+                'total_processed': len(cinos),
+                'error': f'Failed to fetch events: {str(fetch_error)}'
+            }
+        
+        # Create a mapping of CINO to event ID
+        cino_to_event_map = {}
+        for event in existing_events:
+            description = event.get('description', '')
+            # Extract CINO from description using regex
+            cino_match = re.search(r'CINO:\s*([^\n\r]+)', description, re.IGNORECASE)
+            if cino_match:
+                cino = cino_match.group(1).strip()
+                cino_to_event_map[cino] = {
+                    'event_id': event.get('id'),
+                    'summary': event.get('summary', ''),
+                    'start': event.get('start', {})
+                }
+        
+        print(f"🔗 Mapped {len(cino_to_event_map)} events to CINOs")
+        
+        # Delete events for each CINO
+        for i, cino in enumerate(cinos):
+            try:
+                total_processed += 1
+                
+                if cino in cino_to_event_map:
+                    event_info = cino_to_event_map[cino]
+                    event_id = event_info['event_id']
+                    summary = event_info['summary']
+                    
+                    try:
+                        # Delete the event
+                        service.events().delete(
+                            calendarId=calendar_id,
+                            eventId=event_id
+                        ).execute()
+                        
+                        print(f"✅ Deleted event #{deleted_count + 1}: '{summary}' (CINO: {cino})")
+                        deleted_count += 1
+                        
+                    except Exception as delete_error:
+                        print(f"❌ Failed to delete event for CINO {cino}: {delete_error}")
+                        failed_count += 1
+                        
+                else:
+                    print(f"⚠️ No event found for CINO: {cino}")
+                    not_found_count += 1
+                
+                # Progress callback
+                if progress_callback:
+                    try:
+                        progress_callback({
+                            'processed': total_processed,
+                            'total': len(cinos),
+                            'deleted': deleted_count,
+                            'failed': failed_count,
+                            'not_found': not_found_count,
+                            'current_cino': cino,
+                            'current_event': cino_to_event_map.get(cino, {}).get('summary', 'Unknown')
+                        })
+                    except Exception as callback_error:
+                        print(f"⚠️ Progress callback error: {callback_error}")
+                
+                # Rate limiting
+                import time
+                time.sleep(0.2)
+                
+            except Exception as cino_error:
+                print(f"❌ Error processing CINO {cino}: {cino_error}")
+                failed_count += 1
+        
+        # Final results
+        result = {
+            'deleted': deleted_count,
+            'failed': failed_count,
+            'not_found': not_found_count,
+            'total_processed': total_processed,
+            'total_cinos': len(cinos)
+        }
+        
+        print(f"🎉 CINO deletion complete: {deleted_count} deleted, {failed_count} failed, {not_found_count} not found")
+        return result
+        
+    except Exception as e:
+        print(f"💥 Critical error in CINO deletion function: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'deleted': 0,
+            'failed': 0,
+            'not_found': 0,
+            'total_processed': 0,
+            'error': f'Critical error: {str(e)}'
+        }
+
+def get_existing_court_events_detailed(service, calendar_id='primary'):
+    """Get existing court events with detailed information for CINO-based operations"""
+    try:
+        events = []
+        page_token = None
+        
+        while True:
+            events_result = service.events().list(
+                calendarId=calendar_id,
+                pageToken=page_token,
+                maxResults=2500,
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute()
+            
+            batch_events = events_result.get('items', [])
+            
+            for event in batch_events:
+                summary = event.get('summary', '') or ''
+                description = event.get('description', '') or ''
+                
+                # Check if it's a court event
+                if (' vs ' in summary.lower() or
+                    ' v. ' in summary.lower() or
+                    ' v ' in summary.lower() or
+                    'cino:' in description.lower() or
+                    'case no:' in description.lower() or
+                    'establishment:' in description.lower()):
+                    
+                    events.append({
+                        'id': event.get('id'),
+                        'summary': summary,
+                        'description': description,
+                        'start': event.get('start', {}),
+                        'end': event.get('end', {}),
+                        'reminders': event.get('reminders', {})
+                    })
+            
+            page_token = events_result.get('nextPageToken')
+            if not page_token:
+                break
+        
+        return events
+        
+    except Exception as e:
+        print(f"Error getting detailed existing events: {e}")
+        return []

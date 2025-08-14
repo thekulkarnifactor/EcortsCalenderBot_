@@ -1,247 +1,191 @@
-<!-- Loading Modal -->
-<div class="modal fade" id="loadingModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-body text-center py-4">
-                <div class="spinner-border text-primary mb-3" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <h5>Processing...</h5>
-                <p class="text-muted">Please wait while we save your changes.</p>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Advanced Search Modal -->
-<div class="modal fade" id="advancedSearchModal" tabindex="-1" aria-labelledby="advancedSearchModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="advancedSearchModalLabel">
-                    <i class="fas fa-search me-2"></i>Advanced Search
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <h6>Case Information</h6>
-                        <div class="mb-3">
-                            <label for="advCaseNo" class="form-label">Case Number</label>
-                            <input type="text" class="form-control" id="advCaseNo" placeholder="Enter case number">
-                        </div>
-                        <div class="mb-3">
-                            <label for="advCino" class="form-label">CINO</label>
-                            <input type="text" class="form-control" id="advCino" placeholder="Enter CINO">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>Party Names</h6>
-                        <div class="mb-3">
-                            <label for="advPetitioner" class="form-label">Petitioner</label>
-                            <input type="text" class="form-control" id="advPetitioner" placeholder="Enter petitioner name">
-                        </div>
-                        <div class="mb-3">
-                            <label for="advRespondent" class="form-label">Respondent</label>
-                            <input type="text" class="form-control" id="advRespondent" placeholder="Enter respondent name">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>Location</h6>
-                        <div class="mb-3">
-                            <label for="advEstablishment" class="form-label">Establishment</label>
-                            <select class="form-select" id="advEstablishment">
-                                <option value="">All Establishments</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>Case Status</h6>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" id="advChanged">
-                            <label class="form-check-label" for="advChanged">
-                                Cases with recent changes
-                            </label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" id="advWithNotes">
-                            <label class="form-check-label" for="advWithNotes">
-                                Cases with notes
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="advReviewed">
-                            <label class="form-check-label" for="advReviewed">
-                                Reviewed cases only
-                            </label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="clearAdvancedSearch()">Clear All</button>
-                <button type="button" class="btn btn-primary" onclick="applyAdvancedSearch()">Apply Search</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Calendar Creation Progress Modal -->
-<div class="modal fade" id="calendarCreationModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+<!-- Calendar Action Modal -->
+<!-- Enhanced Calendar Action Modal -->
+<div class="modal fade" id="calendarActionModal" tabindex="-1" aria-labelledby="calendarActionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title">
-                    <i class="fas fa-calendar-plus me-2"></i>Creating Calendar Events
+                <h5 class="modal-title" id="calendarActionModalLabel">
+                    <i class="fas fa-calendar-alt me-2"></i>Calendar Actions for Cases
                 </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div id="calendarProgressContent">
-                    <div class="text-center">
-                        <div class="spinner-border text-primary mb-3" role="status">
-                            <span class="visually-hidden">Creating...</span>
-                        </div>
-                        <h6>Preparing calendar events...</h6>
-                        <p class="text-muted">This may take a few moments.</p>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Delete Calendar Modal -->
-<div class="modal fade" id="deleteCalendarModal" tabindex="-1" aria-labelledby="deleteCalendarModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="deleteCalendarModalLabel">
-                    <i class="fas fa-trash-alt me-2"></i>Manage Calendar Events
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <!-- Cleanup Options -->
-                <div class="mb-4">
-                    <h6 class="text-danger mb-3">⚠️ Choose Cleanup Option</h6>
-
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="radio" name="cleanupOption" id="completeCleanup" value="complete">
-                        <label class="form-check-label" for="completeCleanup">
-                            <strong>Complete System Cleanup</strong>
-                            <div class="small text-muted mt-1">
-                                Delete all calendar events, database records, and local files. Creates backup first.
+                <!-- Selection Summary -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card border-info">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-check-square me-2"></i>Selected Cases
+                                </h6>
                             </div>
-                        </label>
-                    </div>
-
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="radio" name="cleanupOption" id="calendarOnly" value="calendar" checked>
-                        <label class="form-check-label" for="calendarOnly">
-                            <strong>Calendar Events Only</strong>
-                            <div class="small text-muted mt-1">
-                                Delete only court events from Google Calendar. Keep local data.
+                            <div class="card-body text-center">
+                                <h3 class="text-info" id="modalSelectedCount">0</h3>
+                                <p class="mb-0">Cases Selected</p>
+                                <small class="text-muted">(<span id="selectedWithDates">0</span> with hearing dates)</small>
                             </div>
-                        </label>
+                        </div>
                     </div>
-
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="radio" name="cleanupOption" id="localOnly" value="local">
-                        <label class="form-check-label" for="localOnly">
-                            <strong>Local Data Only</strong>
-                            <div class="small text-muted mt-1">
-                                Clear database and local files. Keep calendar events.
+                    <div class="col-md-6">
+                        <div class="card border-secondary">
+                            <div class="card-header bg-secondary text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-list me-2"></i>All Cases in Tab
+                                </h6>
                             </div>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Events Preview -->
-                <div id="eventsPreview" style="display: none;">
-                    <h6 class="mb-3">📅 Events Found: <span id="previewCount">0</span> <span id="totalEventsNote"></span></h6>
-                    <div id="eventsList" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
-                        <!-- Events will be populated here -->
-                    </div>
-                </div>
-
-                <!-- Cleanup Progress -->
-                <div id="cleanupProgress" style="display: none;">
-                    <div class="mb-4">
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Overall Progress</span>
-                            <span id="overallProgressPercent">0%</span>
-                        </div>
-                        <div class="progress mb-3">
-                            <div id="overallProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
-                        </div>
-                        <p id="currentStepText" class="text-muted mb-0">Initializing...</p>
-                    </div>
-
-                    <!-- Cleanup Steps -->
-                    <div class="row text-center">
-                        <div class="col-3" id="backupStep">
-                            <i class="fas fa-database fa-2x mb-2"></i>
-                            <div class="small">Backup</div>
-                            <div class="small text-success" id="backupCount">✓</div>
-                        </div>
-                        <div class="col-3" id="calendarStep">
-                            <i class="fas fa-calendar-times fa-2x mb-2"></i>
-                            <div class="small">Calendar</div>
-                            <div class="small" id="deletedCount">0</div>
-                        </div>
-                        <div class="col-3" id="databaseStep">
-                            <i class="fas fa-database fa-2x mb-2"></i>
-                            <div class="small">Database</div>
-                            <div class="small" id="databaseCount">0</div>
-                        </div>
-                        <div class="col-3" id="filesStep">
-                            <i class="fas fa-file fa-2x mb-2"></i>
-                            <div class="small">Files</div>
-                            <div class="small" id="filesCount">0</div>
+                            <div class="card-body text-center">
+                                <h3 class="text-secondary" id="modalAllCount">0</h3>
+                                <p class="mb-0">Total in <span id="modalTabName">Current Tab</span></p>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" id="previewBtn" onclick="previewCleanup()">
-                    <i class="fas fa-eye me-1"></i>Preview
-                </button>
-                <button type="button" class="btn btn-danger" id="cleanupBtn" onclick="confirmCleanup()" style="display: none;">
-                    <i class="fas fa-trash-alt me-1"></i>Start Cleanup
-                </button>
-                <button type="button" class="btn btn-secondary" id="cancelBtn" data-bs-dismiss="modal">Cancel</button>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- Case Upload Modal -->
-<div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="uploadModalLabel">
-                    <i class="fas fa-upload me-2"></i>Upload Daily Cases File
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="uploadForm" enctype="multipart/form-data">
-                    <div class="mb-3">
-                        <label for="caseFile" class="form-label">Select myCases.txt file</label>
-                        <input type="file" class="form-control" id="caseFile" accept=".txt" required>
-                        <div class="form-text">Upload your daily myCases.txt file to update case information.</div>
+                <!-- Selected Cases List -->
+                <div id="selectedCasesOptions" class="mb-4" style="display: none;">
+                    <h6>Selected Cases Details:</h6>
+                    <div id="selectedCasesList" class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                        <!-- Selected cases will be listed here -->
                     </div>
-                </form>
+                </div>
+
+                <!-- Action Options -->
+                <div class="row">
+                    <!-- Selected Cases Actions -->
+                    <div class="col-md-6">
+                        <div class="card border-success">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-check-square me-2"></i>Selected Cases Actions
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="card-text">Perform actions on <strong>ONLY</strong> selected cases.</p>
+
+                                <div class="d-grid gap-2 mb-2">
+                                    <button class="btn btn-success" onclick="executeCalendarAction('create', 'selected')" id="createSelectedBtn">
+                                        <i class="fas fa-calendar-plus me-2"></i>Create Events for SELECTED Cases
+                                        <span class="badge bg-light text-success ms-1" id="selectedCountBadge">0</span>
+                                    </button>
+                                    <button class="btn btn-outline-danger" onclick="executeCalendarAction('delete', 'selected')">
+                                        <i class="fas fa-calendar-times me-2"></i>Delete Events for Selected Cases
+                                    </button>
+                                </div>
+
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    <strong>Only processes cases you have selected with checkboxes.</strong>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- All Cases Actions -->
+                    <div class="col-md-6">
+                        <div class="card border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-list me-2"></i>All Cases Actions
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="card-text">Perform actions on <strong>ALL</strong> cases in current tab.</p>
+
+                                <div class="d-grid gap-2 mb-2">
+                                    <button class="btn btn-primary" onclick="executeCalendarAction('create', 'all')">
+                                        <i class="fas fa-calendar-plus me-2"></i>Create Events for ALL Cases
+                                        <span class="badge bg-light text-primary ms-1" id="allCountBadge">0</span>
+                                    </button>
+                                    <button class="btn btn-outline-danger" onclick="executeCalendarAction('delete', 'all')">
+                                        <i class="fas fa-calendar-times me-2"></i>Delete Events for All Cases
+                                    </button>
+                                </div>
+
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    <strong>Processes all cases visible in the current tab.</strong>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Warning Box -->
+                <div class="alert alert-warning mt-3">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Important Notes:
+                    </h6>
+                    <ul class="mb-0">
+                        <li><strong>Selected Cases:</strong> Only creates calendar events for cases you have checked</li>
+                        <li><strong>All Cases:</strong> Creates calendar events for every case in the current tab</li>
+                        <li>Only cases with valid hearing dates will have calendar events created</li>
+                        <li>For reviewed cases: Cases will be removed from reviewed section after successful calendar creation</li>
+                    </ul>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="uploadFile()">
-                    <i class="fas fa-upload me-1"></i>Upload & Process
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete All Modal -->
+<div class="modal fade" id="deleteAllModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>⚠️ DANGER: Delete All Cases & Calendar Events
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-skull-crossbones me-2"></i>This action is PERMANENT and IRREVERSIBLE!
+                    </h6>
+                    <ul class="mt-2 mb-0">
+                        <li>🗄️ <strong>All cases</strong> from the database</li>
+                        <li>📝 <strong>All case history</strong> and notes</li>
+                        <li>📅 <strong>All court calendar events</strong> from Google Calendar</li>
+                        <li>📁 <strong>All local files</strong></li>
+                    </ul>
+                </div>
+
+                <div class="mb-4">
+                    <h6>⚠️ Before proceeding:</h6>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="backupConfirm" onchange="validateDeletionForm()">
+                        <label class="form-check-label" for="backupConfirm">
+                            I understand a backup will be created automatically
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="permanentConfirm" onchange="validateDeletionForm()">
+                        <label class="form-check-label" for="permanentConfirm">
+                            I understand this action is permanent and cannot be undone
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="calendarConfirm" onchange="validateDeletionForm()">
+                        <label class="form-check-label" for="calendarConfirm">
+                            I understand all Google Calendar events will be deleted
+                        </label>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="confirmationText" class="form-label">
+                        <strong>Type "DELETE_ALL_FOREVER" to confirm:</strong>
+                    </label>
+                    <input type="text" class="form-control form-control-lg text-center" id="confirmationText" placeholder="Type confirmation text here..." onkeyup="validateDeletionForm()">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger btn-lg" id="confirmDeleteAllBtn" onclick="executeDeleteAll()" disabled>
+                    <i class="fas fa-skull-crossbones me-2"></i>DELETE ALL FOREVER
                 </button>
             </div>
         </div>

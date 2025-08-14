@@ -33,7 +33,7 @@ class CaseDatabase:
                 disp_name TEXT,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 user_notes TEXT DEFAULT '',
-                is_changed BOOLEAN DEFAULT FALSE,
+                is_changed BOOLEAN DEFAULT TRUE,
                 change_summary TEXT DEFAULT '',
                 raw_data TEXT,
                 user_side TEXT DEFAULT '',
@@ -46,7 +46,7 @@ class CaseDatabase:
         try:
             cursor.execute("ALTER TABLE cases ADD COLUMN user_side TEXT DEFAULT ''")
         except sqlite3.OperationalError:
-            pass  # Column already exists
+            pass # Column already exists
 
         try:
             cursor.execute("ALTER TABLE cases ADD COLUMN reg_no INTEGER")
@@ -102,7 +102,7 @@ class CaseDatabase:
                     data_list = [parsed]
                 else:
                     raise ValueError("Invalid JSON format")
-
+            
             except (json.JSONDecodeError, ValueError):
                 try:
                     # Format 2: One JSON object per line
@@ -110,7 +110,7 @@ class CaseDatabase:
                     data_list = []
                     for line in lines:
                         line = line.strip()
-                        if line:  # Skip empty lines
+                        if line: # Skip empty lines
                             data_list.append(json.loads(line))
                 except json.JSONDecodeError as e:
                     return {"error": f"Invalid JSON format: {str(e)}"}
@@ -121,6 +121,7 @@ class CaseDatabase:
             # Process the data
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
+
             stats = {"new": 0, "updated": 0, "unchanged": 0}
 
             for case_data in data_list:
@@ -130,10 +131,6 @@ class CaseDatabase:
                 cino = case_data.get('cino')
                 if not cino:
                     continue
-
-                # Extract reg_no and reg_year from the case data
-                reg_no = case_data.get('reg_no')
-                reg_year = case_data.get('reg_year')
 
                 # Check if case exists
                 cursor.execute("SELECT * FROM cases WHERE cino = ?", (cino,))
@@ -148,7 +145,7 @@ class CaseDatabase:
                     else:
                         stats["unchanged"] += 1
                 else:
-                    # New case
+                    # New case - FIXED: Always mark as changed (pending review)
                     self._insert_new_case(cursor, case_data)
                     stats["new"] += 1
 
@@ -227,14 +224,14 @@ class CaseDatabase:
             """, (cino, change['field'], change['old_value'], change['new_value']))
 
     def _insert_new_case(self, cursor, case_data: dict):
-        """Insert new case record"""
+        """Insert new case record - ALWAYS as pending (is_changed=TRUE) - FIXED"""
         cursor.execute("""
             INSERT INTO cases (
                 cino, case_no, petparty_name, resparty_name, establishment_name,
                 state_name, district_name, date_next_list, date_last_list,
                 purpose_name, type_name, court_no_desg_name, disp_name, raw_data,
-                reg_no, reg_year
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                reg_no, reg_year, is_changed
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             case_data.get('cino') or '',
             case_data.get('case_no') or '',
@@ -251,15 +248,16 @@ class CaseDatabase:
             case_data.get('disp_name') or '',
             json.dumps(case_data),
             case_data.get('reg_no'),
-            case_data.get('reg_year')
+            case_data.get('reg_year'),
+            True  # FIXED: Always set as TRUE (pending review)
         ))
 
-    def create_new_case(self, case_data: dict) -> bool:
+    def create_new_case(self, case_data: dict) -> tuple[bool, str]:
         """Create a new case manually"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-
+            
             # Check if CINO already exists
             cursor.execute("SELECT cino FROM cases WHERE cino = ?", (case_data.get('cino'),))
             if cursor.fetchone():
@@ -279,192 +277,108 @@ class CaseDatabase:
         """Get all cases with change status"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-
+        
         cursor.execute("""
             SELECT * FROM cases ORDER BY
             CASE WHEN is_changed = 1 THEN 0 ELSE 1 END,
             updated_at DESC
         """)
-
+        
         cases = cursor.fetchall()
         conn.close()
-
+        
         return [self._row_to_dict(case) for case in cases]
 
     def get_case_by_cino(self, cino: str) -> Optional[Dict]:
         """Get specific case by CINO"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
+        
         cursor.execute("SELECT * FROM cases WHERE cino = ?", (cino,))
         case = cursor.fetchone()
         conn.close()
+        
         return self._row_to_dict(case) if case else None
 
     def update_case_notes(self, cino: str, notes: str, other_updates: dict = None) -> bool:
         """Update case notes and other fields"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-
+        
         if other_updates:
             # Build dynamic update query
             update_fields = ["user_notes = ?"]
             values = [notes]
-
+            
             for field, value in other_updates.items():
                 update_fields.append(f"{field} = ?")
                 values.append(value)
-
+            
             values.append(cino)
+            
             cursor.execute(f"""
                 UPDATE cases SET {', '.join(update_fields)}
                 WHERE cino = ?
             """, values)
         else:
             cursor.execute("UPDATE cases SET user_notes = ? WHERE cino = ?", (notes, cino))
-
+        
         conn.commit()
         conn.close()
         return True
 
-    def mark_case_reviewed(self, cino: str):
-        """Mark case as reviewed (clear change flag)"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute("UPDATE cases SET is_changed = FALSE WHERE cino = ?", (cino,))
-        conn.commit()
-        conn.close()
-
-    def _row_to_dict(self, row: tuple) -> Dict:
-        """Convert database row to dictionary"""
-        if not row:
-            return None
-
-        columns = [
-            'id', 'cino', 'case_no', 'petparty_name', 'resparty_name',
-            'establishment_name', 'state_name', 'district_name', 'date_next_list',
-            'date_last_list', 'purpose_name', 'type_name', 'court_no_desg_name',
-            'disp_name', 'updated_at', 'user_notes', 'is_changed', 'change_summary', 
-            'raw_data', 'user_side', 'reg_no', 'reg_year'
-        ]
-
-        result = dict(zip(columns, row))
-        result['is_changed'] = bool(result['is_changed'])
-        return result
-
-    def get_reviewed_cases_with_notes(self) -> List[Dict]:
-        """Get cases that have been reviewed and have user notes"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            SELECT * FROM cases
-            WHERE is_changed = FALSE
-              AND user_notes IS NOT NULL
-              AND user_notes != ''
-            ORDER BY updated_at DESC
-        """)
-
-        cases = cursor.fetchall()
-        conn.close()
-
-        return [self._row_to_dict(case) for case in cases]
-
-    def clear_all_data(self) -> Dict[str, int]:
-        """
-        Clear all case data from the database.
-        Returns:
-            Dictionary with deletion statistics
-        """
+    def mark_case_as_reviewed(self, cino: str) -> bool:
+        """Mark single case as reviewed without requiring notes"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-
-            # Get counts before deletion
-            cursor.execute("SELECT COUNT(*) FROM cases")
-            cases_count = cursor.fetchone()[0]
-
-            cursor.execute("SELECT COUNT(*) FROM case_history")
-            history_count = cursor.fetchone()[0]
-
-            # Delete all data
-            cursor.execute("DELETE FROM case_history")
-            cursor.execute("DELETE FROM cases")
-
-            # Reset auto-increment counters
-            cursor.execute("DELETE FROM sqlite_sequence WHERE name='cases'")
-            cursor.execute("DELETE FROM sqlite_sequence WHERE name='case_history'")
-
+            
+            cursor.execute("""
+                UPDATE cases 
+                SET is_changed = FALSE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE cino = ?
+            """, (cino,))
+            
+            # Record in history
+            cursor.execute("""
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'marked_reviewed', 'pending', 'reviewed')
+            """, (cino,))
+            
             conn.commit()
+            success = cursor.rowcount > 0
             conn.close()
-
-            print(f"🗑️ Database cleared: {cases_count} cases, {history_count} history records")
-            return {
-                'cases_deleted': cases_count,
-                'history_deleted': history_count,
-                'total_deleted': cases_count + history_count
-            }
-
+            
+            if success:
+                print(f"✅ Marked case {cino} as reviewed")
+            
+            return success
+            
         except Exception as e:
-            print(f"Error clearing database: {e}")
-            return {
-                'cases_deleted': 0,
-                'history_deleted': 0,
-                'total_deleted': 0,
-                'error': str(e)
-            }
+            print(f"Error marking case as reviewed: {e}")
+            return False
 
-    def backup_data_before_clear(self, backup_path: str = None) -> str:
-        """
-        Create a backup of all data before clearing.
-        Args:
-            backup_path: Optional custom backup path
-        Returns:
-            Path to the backup file
-        """
-        try:
-            import shutil
-            from datetime import datetime
-
-            if not backup_path:
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                backup_path = f"data/backup_cases_{timestamp}.db"
-
-            # Create backup directory if it doesn't exist
-            os.makedirs(os.path.dirname(backup_path), exist_ok=True)
-
-            # Copy the database file
-            shutil.copy2(self.db_path, backup_path)
-            print(f"💾 Database backup created: {backup_path}")
-            return backup_path
-
-        except Exception as e: 
-            print(f"Error creating backup: {e}")
-            return None
-        
-    def get_upcoming_hearings(self) -> List[Dict]:
-        """Get cases with upcoming hearing dates"""
+    def get_reviewed_cases_with_notes(self) -> List[Dict]:
+        """Get cases that have been reviewed (is_changed = FALSE) - FIXED"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # Get cases with valid future dates
         cursor.execute("""
-            SELECT * FROM cases 
-            WHERE date_next_list IS NOT NULL 
-            AND date_next_list != '' 
-            AND date_next_list != 'Not scheduled'
-            AND date(date_next_list) >= date('now')
-            ORDER BY date_next_list ASC
+            SELECT * FROM cases
+            WHERE is_changed = FALSE
+            ORDER BY updated_at DESC
         """)
         
         cases = cursor.fetchall()
         conn.close()
+        
         return [self._row_to_dict(case) for case in cases]
 
     def get_petitioner_cases(self) -> List[Dict]:
         """Get cases where user is petitioner"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
         cursor.execute("SELECT * FROM cases WHERE user_side = 'petitioner' ORDER BY updated_at DESC")
         cases = cursor.fetchall()
         conn.close()
@@ -474,54 +388,254 @@ class CaseDatabase:
         """Get cases where user is respondent"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
         cursor.execute("SELECT * FROM cases WHERE user_side = 'respondent' ORDER BY updated_at DESC")
         cases = cursor.fetchall()
         conn.close()
         return [self._row_to_dict(case) for case in cases]
 
-    def get_case_counts(self) -> Dict[str, int]:
-        """Get counts for different case categories"""
+    def get_unassigned_cases(self) -> List[Dict]:
+        """Get cases where user_side is not set"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+        cursor.execute("SELECT * FROM cases WHERE user_side IS NULL OR user_side = '' ORDER BY updated_at DESC")
+        cases = cursor.fetchall()
+        conn.close()
+        return [self._row_to_dict(case) for case in cases]
+
+    def get_case_counts(self) -> Dict[str, int]:
+        """Get counts for law firm dashboard - FIXED"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
         # Total cases
         cursor.execute("SELECT COUNT(*) FROM cases")
         total_cases = cursor.fetchone()[0]
-        
-        # Changed cases
+
+        # Changed cases (pending review)
         cursor.execute("SELECT COUNT(*) FROM cases WHERE is_changed = TRUE")
         changed_cases = cursor.fetchone()[0]
-        
-        # Reviewed cases
-        cursor.execute("SELECT COUNT(*) FROM cases WHERE is_changed = FALSE AND user_notes IS NOT NULL AND user_notes != ''")
+
+        # FIXED: Reviewed cases (is_changed = FALSE only)
+        cursor.execute("SELECT COUNT(*) FROM cases WHERE is_changed = FALSE")
         reviewed_cases = cursor.fetchone()[0]
-        
+
         # Petitioner cases
         cursor.execute("SELECT COUNT(*) FROM cases WHERE user_side = 'petitioner'")
         petitioner_cases = cursor.fetchone()[0]
-        
+
         # Respondent cases
         cursor.execute("SELECT COUNT(*) FROM cases WHERE user_side = 'respondent'")
         respondent_cases = cursor.fetchone()[0]
-        
+
+        # Cases without user side set
+        cursor.execute("SELECT COUNT(*) FROM cases WHERE user_side IS NULL OR user_side = ''")
+        cases_without_user_side = cursor.fetchone()[0]
+
         # Upcoming hearings
         cursor.execute("""
-            SELECT COUNT(*) FROM cases 
-            WHERE date_next_list IS NOT NULL 
-            AND date_next_list != '' 
+            SELECT COUNT(*) FROM cases
+            WHERE date_next_list IS NOT NULL
+            AND date_next_list != ''
             AND date_next_list != 'Not scheduled'
             AND date(date_next_list) >= date('now')
         """)
         upcoming_hearings = cursor.fetchone()[0]
-        
+
         conn.close()
-        
+
         return {
             'total_cases': total_cases,
             'changed_cases': changed_cases,
             'reviewed_cases': reviewed_cases,
             'petitioner_cases': petitioner_cases,
             'respondent_cases': respondent_cases,
+            'cases_without_user_side': cases_without_user_side,
             'upcoming_hearings': upcoming_hearings
         }
+
+    def mark_multiple_cases_as_reviewed(self, cinos: List[str]) -> int:
+        """Mark multiple cases as reviewed for bulk operations"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            marked_count = 0
+            
+            for cino in cinos:
+                cursor.execute("""
+                    UPDATE cases 
+                    SET is_changed = FALSE,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE cino = ?
+                """, (cino,))
+                
+                if cursor.rowcount > 0:
+                    marked_count += 1
+                    
+                    # Record in history
+                    cursor.execute("""
+                        INSERT INTO case_history (cino, field_name, old_value, new_value)
+                        VALUES (?, 'bulk_marked_reviewed', 'pending', 'reviewed')
+                    """, (cino,))
+            
+            conn.commit()
+            conn.close()
+            
+            print(f"✅ Marked {marked_count} cases as reviewed")
+            return marked_count
+            
+        except Exception as e:
+            print(f"Error marking multiple cases as reviewed: {e}")
+            return 0
+
+    def remove_from_reviewed_keep_notes(self, cinos: List[str]) -> int:
+        """Remove cases from reviewed section but keep their notes"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            removed_count = 0
+            
+            for cino in cinos:
+                # Mark as changed (removes from reviewed) but keep notes
+                cursor.execute("""
+                    UPDATE cases 
+                    SET is_changed = TRUE,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE cino = ? AND is_changed = FALSE
+                """, (cino,))
+                
+                if cursor.rowcount > 0:
+                    removed_count += 1
+                    
+                    # Record in history
+                    cursor.execute("""
+                        INSERT INTO case_history (cino, field_name, old_value, new_value)
+                        VALUES (?, 'removed_from_reviewed', 'reviewed', 'pending')
+                    """, (cino,))
+            
+            conn.commit()
+            conn.close()
+            
+            print(f"✅ Removed {removed_count} cases from reviewed (keeping notes)")
+            return removed_count
+            
+        except Exception as e:
+            print(f"Error removing cases from reviewed: {e}")
+            return 0
+
+    def update_case_user_side(self, cino: str, user_side: str) -> bool:
+        """Update case user side (petitioner/respondent)"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE cases 
+                SET user_side = ?, 
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE cino = ?
+            """, (user_side, cino))
+            
+            # Record the change in history
+            cursor.execute("""
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'user_side_updated', '', ?)
+            """, (cino, user_side))
+            
+            conn.commit()
+            success = cursor.rowcount > 0
+            conn.close()
+            
+            if success:
+                print(f"✅ Updated user side for case {cino}: {user_side}")
+            
+            return success
+            
+        except Exception as e:
+            print(f"Error updating user side: {e}")
+            return False
+
+    def _row_to_dict(self, row: tuple) -> Dict:
+        """Convert database row to dictionary"""
+        if not row:
+            return None
+        
+        columns = [
+            'id', 'cino', 'case_no', 'petparty_name', 'resparty_name',
+            'establishment_name', 'state_name', 'district_name', 'date_next_list',
+            'date_last_list', 'purpose_name', 'type_name', 'court_no_desg_name',
+            'disp_name', 'updated_at', 'user_notes', 'is_changed', 'change_summary',
+            'raw_data', 'user_side', 'reg_no', 'reg_year'
+        ]
+        
+        result = dict(zip(columns, row))
+        result['is_changed'] = bool(result['is_changed'])
+        return result
+
+    def delete_all_cases_permanently(self) -> Dict[str, int]:
+        """Permanently delete all cases and history from database"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get counts before deletion
+            cursor.execute("SELECT COUNT(*) FROM cases")
+            cases_count = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM case_history")
+            history_count = cursor.fetchone()[0]
+            
+            # Delete all data permanently
+            cursor.execute("DELETE FROM case_history")
+            cursor.execute("DELETE FROM cases")
+            
+            # Reset auto-increment counters
+            cursor.execute("DELETE FROM sqlite_sequence WHERE name='cases'")
+            cursor.execute("DELETE FROM sqlite_sequence WHERE name='case_history'")
+            
+            conn.commit()
+            conn.close()
+            
+            print(f"🗑️ All cases deleted permanently: {cases_count} cases, {history_count} history records")
+            return {
+                'cases_deleted': cases_count,
+                'history_deleted': history_count,
+                'total_deleted': cases_count + history_count
+            }
+            
+        except Exception as e:
+            print(f"Error deleting all cases: {e}")
+            return {
+                'cases_deleted': 0,
+                'history_deleted': 0,
+                'total_deleted': 0,
+                'error': str(e)
+            }
+
+    def backup_data_before_clear(self, backup_path: str = None) -> str:
+        """Create a backup of all data before clearing"""
+        try:
+            import shutil
+            from datetime import datetime
+            
+            if not backup_path:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                backup_path = f"data/backup_cases_{timestamp}.db"
+            
+            # Create backup directory if it doesn't exist
+            os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+            
+            # Copy the database file
+            shutil.copy2(self.db_path, backup_path)
+            
+            print(f"💾 Database backup created: {backup_path}")
+            return backup_path
+            
+        except Exception as e:
+            print(f"Error creating backup: {e}")
+            return None
+
+    def clear_all_data(self) -> Dict[str, int]:
+        """Clear all case data from the database"""
+        return self.delete_all_cases_permanently()

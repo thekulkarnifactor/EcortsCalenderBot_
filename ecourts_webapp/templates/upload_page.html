@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Cases - e-Courts Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <style>
+        .upload-area {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            border-color: var(--primary-color) !important;
+            background-color: rgba(37, 99, 235, 0.05);
+        }
+        
+        .upload-area.drag-over {
+            border-color: var(--success-color) !important;
+            background-color: rgba(16, 185, 129, 0.1);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="row mb-5">
+            <div class="col-12 text-center">
+                <h1 class="display-4 fw-bold text-primary mb-3">
+                    <i class="fas fa-gavel me-3"></i>e-Courts Case Management
+                </h1>
+                <p class="lead text-muted">Upload your daily cases file to get started</p>
+            </div>
+        </div>
+
+        <!-- Main Upload Section -->
+        <div class="row justify-content-center">
+            <div class="col-lg-8 col-xl-6">
+                <div class="card shadow-lg border-0 mb-4">
+                    <div class="card-header bg-primary text-white py-3">
+                        <h4 class="card-title mb-0">
+                            <i class="fas fa-upload me-2"></i>Upload Daily Cases File
+                        </h4>
+                    </div>
+                    <div class="card-body p-4">
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <!-- File Upload Area -->
+                            <div class="upload-area border-2 border-dashed border-primary rounded-3 p-5 text-center mb-4" id="uploadArea">
+                                <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3" id="uploadIcon"></i>
+                                <h5 class="text-primary mb-3" id="uploadTitle">Drop your myCases.txt file here</h5>
+                                <p class="text-muted mb-3">or</p>
+                                <!-- FIXED: Remove onclick and use proper event handling -->
+                                <input type="file" class="form-control d-none" id="caseFile" accept=".txt" required>
+                                <button type="button" class="btn btn-outline-primary btn-lg" id="browseBtn">
+                                    <i class="fas fa-folder-open me-2"></i>Browse Files
+                                </button>
+                                <div class="mt-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Only .txt files are supported. Max size: 10MB
+                                    </small>
+                                </div>
+                            </div>
+
+                            <!-- Selected File Info -->
+                            <div id="fileInfo" class="alert alert-info d-none">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-file-alt fa-2x me-3"></i>
+                                    <div class="flex-grow-1">
+                                        <strong id="fileName"></strong>
+                                        <div class="small text-muted" id="fileDetails"></div>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" id="clearFileBtn">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Progress Bar -->
+                            <div class="progress-container d-none" id="progressContainer">
+                                <div class="progress mb-3">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" id="uploadProgress">
+                                        <span id="progressText">0%</span>
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <small class="text-muted" id="progressMessage">Preparing upload...</small>
+                                </div>
+                            </div>
+
+                            <!-- Upload Button -->
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg" id="uploadBtn" disabled>
+                                    <i class="fas fa-upload me-2"></i>Upload & Process Cases
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Upload Success -->
+                        <div class="d-none" id="uploadSuccess">
+                            <div class="alert alert-success">
+                                <h5 class="alert-heading">
+                                    <i class="fas fa-check-circle me-2"></i>Upload Successful!
+                                </h5>
+                                <p class="mb-3">Your cases file has been processed successfully.</p>
+                                <div id="uploadStats" class="mb-3">
+                                    <!-- Stats will be populated here -->
+                                </div>
+                                <hr>
+                                <div class="d-grid">
+                                    <a href="/dashboard" class="btn btn-success">
+                                        <i class="fas fa-tachometer-alt me-2"></i>Go to Dashboard
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // FIXED: Proper file upload handling
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadForm = document.getElementById('uploadForm');
+            const uploadArea = document.getElementById('uploadArea');
+            const caseFile = document.getElementById('caseFile');
+            const browseBtn = document.getElementById('browseBtn');
+            const clearFileBtn = document.getElementById('clearFileBtn');
+            const uploadBtn = document.getElementById('uploadBtn');
+
+            // Browse button click handler
+            browseBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                caseFile.click();
+            });
+
+            // Upload area click handler
+            uploadArea.addEventListener('click', function(e) {
+                if (e.target === browseBtn || browseBtn.contains(e.target)) {
+                    return; // Let browse button handle it
+                }
+                caseFile.click();
+            });
+
+            // File selection handler
+            caseFile.addEventListener('change', handleFileSelect);
+
+            // Clear file handler
+            clearFileBtn.addEventListener('click', clearFile);
+
+            // Form submission handler
+            uploadForm.addEventListener('submit', handleUpload);
+
+            // Drag and drop handlers
+            uploadArea.addEventListener('dragover', handleDragOver);
+            uploadArea.addEventListener('dragleave', handleDragLeave);
+            uploadArea.addEventListener('drop', handleDrop);
+
+            function handleDragOver(e) {
+                e.preventDefault();
+                uploadArea.classList.add('drag-over');
+            }
+
+            function handleDragLeave(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('drag-over');
+            }
+
+            function handleDrop(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('drag-over');
+
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    // Set the files to the input
+                    const dt = new DataTransfer();
+                    dt.items.add(files[0]);
+                    caseFile.files = dt.files;
+                    handleFileSelect();
+                }
+            }
+
+            function handleFileSelect() {
+                const file = caseFile.files[0];
+
+                if (file) {
+                    if (!file.name.endsWith('.txt')) {
+                        showAlert('Please select a .txt file', 'danger');
+                        clearFile();
+                        return;
+                    }
+
+                    if (file.size > 10 * 1024 * 1024) { // 10MB
+                        showAlert('File size too large. Maximum 10MB allowed.', 'danger');
+                        clearFile();
+                        return;
+                    }
+
+                    // Show file info
+                    document.getElementById('fileName').textContent = file.name;
+                    document.getElementById('fileDetails').textContent =
+                        `${(file.size / 1024).toFixed(1)} KB • ${new Date(file.lastModified).toLocaleDateString()}`;
+                    document.getElementById('fileInfo').classList.remove('d-none');
+                    uploadBtn.disabled = false;
+
+                    // Update upload area
+                    document.getElementById('uploadIcon').className = 'fas fa-file-alt fa-3x text-success mb-3';
+                    document.getElementById('uploadTitle').textContent = 'File ready for upload';
+                    document.getElementById('uploadTitle').className = 'text-success mb-3';
+                }
+            }
+
+            function clearFile() {
+                caseFile.value = '';
+                document.getElementById('fileInfo').classList.add('d-none');
+                uploadBtn.disabled = true;
+
+                // Reset upload area
+                document.getElementById('uploadIcon').className = 'fas fa-cloud-upload-alt fa-3x text-primary mb-3';
+                document.getElementById('uploadTitle').textContent = 'Drop your myCases.txt file here';
+                document.getElementById('uploadTitle').className = 'text-primary mb-3';
+            }
+
+            function handleUpload(e) {
+                e.preventDefault();
+
+                const file = caseFile.files[0];
+                if (!file) {
+                    showAlert('Please select a file first', 'warning');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                // Show progress
+                document.getElementById('progressContainer').classList.remove('d-none');
+                uploadBtn.disabled = true;
+                uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+
+                // Simulate progress
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += Math.random() * 30;
+                    if (progress > 90) progress = 90;
+                    updateProgress(progress, 'Processing file...');
+                }, 500);
+
+                fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        clearInterval(progressInterval);
+                        updateProgress(100, 'Upload complete!');
+
+                        if (data.error) {
+                            throw new Error(data.error);
+                        }
+
+                        // Show success
+                        setTimeout(() => {
+                            showUploadSuccess(data.stats);
+                        }, 1000);
+                    })
+                    .catch(error => {
+                        clearInterval(progressInterval);
+                        showAlert('Upload failed: ' + error.message, 'danger');
+                        resetUploadForm();
+                    });
+            }
+
+            function updateProgress(percent, message) {
+                document.getElementById('uploadProgress').style.width = percent + '%';
+                document.getElementById('progressText').textContent = Math.round(percent) + '%';
+                document.getElementById('progressMessage').textContent = message;
+            }
+
+            function showUploadSuccess(stats) {
+                uploadForm.classList.add('d-none');
+                document.getElementById('progressContainer').classList.add('d-none');
+                document.getElementById('uploadSuccess').classList.remove('d-none');
+
+                // Populate stats
+                const statsHtml = `
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <h4 class="text-success">${stats.new || 0}</h4>
+                            <small>New Cases</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="text-warning">${stats.updated || 0}</h4>
+                            <small>Updated Cases</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="text-info">${stats.unchanged || 0}</h4>
+                            <small>Unchanged Cases</small>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('uploadStats').innerHTML = statsHtml;
+            }
+
+            function resetUploadForm() {
+                clearFile();
+                document.getElementById('progressContainer').classList.add('d-none');
+                uploadBtn.disabled = true;
+                uploadBtn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload & Process Cases';
+            }
+
+            function showAlert(message, type = 'info') {
+                // Simple alert for now
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+                alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+                alertDiv.innerHTML = `
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+
+                document.body.appendChild(alertDiv);
+
+                setTimeout(() => {
+                    if (alertDiv.parentNode) {
+                        alertDiv.remove();
+                    }
+                }, 5000);
+            }
+        });
+    </script>
+</body>
+
+</html>

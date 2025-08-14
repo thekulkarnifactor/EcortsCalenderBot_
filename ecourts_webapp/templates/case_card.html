@@ -130,15 +130,19 @@
                 <textarea class="form-control notes-input" placeholder="Add your notes..." onchange="markCaseModified('{{ case.cino }}')">{{ case.user_notes or '' }}</textarea>
 
                 <!-- Action Buttons -->
-                <div class="card-buttons mt-2 d-flex gap-2">
-                    <button class="btn btn-success btn-sm" onclick="saveCase('{{ case.cino }}')">
+                <div class="card-buttons">
+                    <button class="btn btn-sm btn-primary" onclick="saveCase('{{ case.cino }}')">
                         <i class="fas fa-save"></i> Save
-                    </button> {% if case.is_changed %}
-                    <button class="btn btn-info btn-sm" onclick="markReviewed('{{ case.cino }}')">
-                        <i class="fas fa-check"></i> Reviewed
+                    </button>
+
+                    <!-- Add this remove button for reviewed cases -->
+                    {% if is_reviewed_section %}
+                    <button class="btn btn-sm btn-danger" onclick="removeFromReviewed('{{ case.cino }}')">
+                        <i class="fas fa-trash-alt"></i> Remove
                     </button> {% endif %}
-                    <button class="btn btn-outline-primary btn-sm" onclick="openCaseDetail('{{ case.cino }}')">
-                        <i class="fas fa-eye"></i> Details
+
+                    <button class="btn btn-sm btn-info" onclick="openCaseDetail('{{ case.cino }}')">
+                        <i class="fas fa-eye"></i> View
                     </button>
                 </div>
             </div>

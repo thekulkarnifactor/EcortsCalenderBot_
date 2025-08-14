@@ -22,6 +22,61 @@ body {
 }
 
 
+/* Upload Button Styling */
+
+.btn-info {
+    background: linear-gradient(135deg, var(--info-color), #22d3ee);
+    box-shadow: 0 2px 4px -1px rgb(6 182 212 / 0.3);
+    color: white;
+    border: none;
+}
+
+.btn-info:hover {
+    background: linear-gradient(135deg, #0891b2, var(--info-color));
+    box-shadow: 0 4px 8px -1px rgb(6 182 212 / 0.4);
+    color: white;
+    transform: translateY(-1px);
+}
+
+
+/* Upload Page Specific Styles */
+
+.upload-area {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.upload-area:hover {
+    border-color: var(--primary-color) !important;
+    background-color: rgba(37, 99, 235, 0.05);
+}
+
+.upload-area.drag-over {
+    border-color: var(--success-color) !important;
+    background-color: rgba(16, 185, 129, 0.1);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 1rem;
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    border-radius: 0.5rem;
+    border: 1px solid #e2e8f0;
+    transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+
 /* Enhanced Card Layout */
 
 .case-card {
@@ -356,6 +411,41 @@ body {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
+.hearing-date-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.case-detail .hearing-date-container .badge {
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+}
+
+.case-detail .form-control {
+    max-width: 250px;
+}
+
+.case-detail .hearing-date-edit-btn {
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.case-detail .hearing-date-edit-btn:hover {
+    opacity: 1;
+}
+
+
+/* Animation for smooth transitions */
+
+.hearing-date-container .badge,
+.hearing-date-container .form-control {
+    transition: all 0.3s ease;
+}
+
 
 /* Case Details Enhancement */
 
@@ -500,4 +590,133 @@ body {
     height: 32px !important;
     line-height: 1 !important;
     flex-shrink: 0 !important;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, var(--danger-color), #f87171);
+    box-shadow: 0 2px 4px -1px rgb(239 68 68 / 0.3);
+    color: white;
+    border: none;
+}
+
+.btn-danger:hover {
+    background: linear-gradient(135deg, #dc2626, var(--danger-color));
+    box-shadow: 0 4px 8px -1px rgb(239 68 68 / 0.4);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.btn-outline-danger {
+    border: 1px solid var(--danger-color);
+    color: var(--danger-color);
+    background: transparent;
+}
+
+.btn-outline-danger:hover {
+    background: var(--danger-color);
+    border-color: var(--danger-color);
+    color: white;
+    transform: translateY(-1px);
+}
+
+
+/* Empty state styling for reviewed cases */
+
+.reviewed-cases-empty {
+    background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+    border: 2px dashed #0ea5e9;
+    border-radius: 1rem;
+    padding: 3rem 2rem;
+    text-align: center;
+    animation: fadeIn 0.5s ease;
+}
+
+.reviewed-cases-empty i {
+    opacity: 0.8;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.case-card-removing {
+    transition: all 0.5s ease;
+    opacity: 0;
+    transform: scale(0.8);
+}
+
+
+/* Selection Interface Styling */
+
+.selection-checkbox {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+    background: white;
+    border-radius: 50%;
+    padding: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.selection-checkbox .form-check-input {
+    margin: 0;
+    transform: scale(1.2);
+}
+
+.case-card {
+    transition: all 0.3s ease;
+}
+
+.case-card:has(.case-selection:checked) {
+    border-color: var(--success-color) !important;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+    transform: translateY(-2px);
+}
+
+
+/* Selected cases summary */
+
+#selectionSummary {
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
+/* Modal enhancements */
+
+#selectedCasesList .border-bottom:last-child {
+    border-bottom: none !important;
+}
+
+
+/* Quick save button styling */
+
+.btn-success.btn-sm {
+    background: linear-gradient(135deg, var(--success-color), #34d399);
+    border: none;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.btn-success.btn-sm:hover {
+    background: linear-gradient(135deg, #059669, var(--success-color));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(16, 185, 129, 0.4);
 }
