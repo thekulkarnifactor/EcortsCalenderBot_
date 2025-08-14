@@ -1,10 +1,10 @@
-// Law Firm Case Management JavaScript - FIXED CALENDAR VERSION
+// Law Firm Case Management JavaScript - NO BROWSER ALERTS VERSION
 let pendingChanges = new Set();
 let selectedCases = new Set();
 let allCasesData = [];
 let currentFilters = { text: '', dateFrom: '', dateTo: '', advanced: {} };
 let currentTab = 'all-cases';
-let filterMemory = {}; // Store filter state per tab
+let filterMemory = {};
 
 // Initialize everything when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
@@ -20,7 +20,6 @@ document.addEventListener('DOMContentLoaded', function() {
 function switchTab(tabId) {
     console.log('Switching to tab:', tabId);
     
-    // Save current filter state for current tab
     if (currentTab) {
         filterMemory[currentTab] = {
             text: document.getElementById('searchInput')?.value || '',
@@ -30,18 +29,13 @@ function switchTab(tabId) {
         };
     }
     
-    // Update current tab
     currentTab = tabId;
-    
-    // Clear selections when switching tabs
     selectedCases.clear();
     updateBulkActions();
     
-    // Restore filters for new tab
     if (filterMemory[tabId]) {
         const savedFilters = filterMemory[tabId];
         
-        // Restore input values
         const searchInput = document.getElementById('searchInput');
         const dateFromInput = document.getElementById('dateFromInput');
         const dateToInput = document.getElementById('dateToInput');
@@ -50,7 +44,6 @@ function switchTab(tabId) {
         if (dateFromInput) dateFromInput.value = savedFilters.dateFrom;
         if (dateToInput) dateToInput.value = savedFilters.dateTo;
         
-        // Restore active filter button
         document.querySelectorAll('#dateFilterGroup .btn').forEach(btn => {
             btn.classList.remove('active');
         });
@@ -62,7 +55,6 @@ function switchTab(tabId) {
             }
         }
         
-        // Update current filters
         currentFilters = {
             text: savedFilters.text,
             dateFrom: savedFilters.dateFrom,
@@ -70,16 +62,13 @@ function switchTab(tabId) {
             advanced: {}
         };
         
-        // Apply filters
         setTimeout(() => {
             filterCases();
         }, 100);
     } else {
-        // Clear filters for new tab
         clearAllFilters();
     }
     
-    // Update toggle button text
     updateToggleButtonText(tabId);
 }
 
@@ -105,14 +94,12 @@ function updateToggleButtonText(tabId) {
         'reviewed-cases': 'toggleReviewedText'
     };
     
-    // Reset all toggle texts
     Object.values(toggleTexts).forEach(textId => {
         const element = document.getElementById(textId);
         if (element) element.textContent = 'Select All';
     });
 }
 
-// Initialize search functionality
 function initializeSearch() {
     console.log('Search initialized');
     
@@ -144,7 +131,6 @@ function extractDateFromCard(card) {
     }
 }
 
-// Date filter functions
 function setDateFilter(period) {
     console.log('Setting date filter:', period);
     
@@ -188,7 +174,6 @@ function setDateFilter(period) {
     dateFromInput.value = fromDate;
     dateToInput.value = toDate;
 
-    // Update button states
     document.querySelectorAll('#dateFilterGroup .btn').forEach(btn => {
         btn.classList.remove('active');
     });
@@ -256,7 +241,6 @@ function handleSearch() {
 function filterCases() {
     let visibleCount = 0;
     
-    // Get cases from current active tab
     const activeTabPane = document.querySelector('.tab-pane.active');
     if (!activeTabPane) return;
     
@@ -275,7 +259,6 @@ function filterCases() {
             nextDate: extractDateFromCard(card) || ''
         };
 
-        // Text search
         if (currentFilters.text) {
             const searchTerm = currentFilters.text.toLowerCase();
             matches = matches && (
@@ -286,7 +269,6 @@ function filterCases() {
             );
         }
 
-        // Date range filter
         if ((currentFilters.dateFrom || currentFilters.dateTo) && caseData.nextDate) {
             const caseDate = new Date(caseData.nextDate);
             if (currentFilters.dateFrom) {
@@ -314,7 +296,7 @@ function updateSearchResultsCount(count) {
     }
 }
 
-// Mark case as reviewed - FIXED to work without notes
+// UPDATED: Mark case as reviewed - No browser alerts
 function markAsReviewed(cino) {
     console.log('Marking case as reviewed:', cino);
     
@@ -342,9 +324,9 @@ function markAsReviewed(cino) {
             throw new Error(data.error);
         }
         
+        // REPLACED: Browser alert with custom alert
         showAlert('Case marked as reviewed successfully', 'success');
         
-        // Update UI immediately
         card.dataset.changed = 'false';
         card.classList.remove('border-warning');
         
@@ -354,6 +336,7 @@ function markAsReviewed(cino) {
     })
     .catch(error => {
         console.error('Mark as reviewed error:', error);
+        // REPLACED: Browser alert with custom alert
         showAlert('Failed to mark as reviewed: ' + error.message, 'danger');
     })
     .finally(() => {
@@ -362,39 +345,43 @@ function markAsReviewed(cino) {
     });
 }
 
+// UPDATED: Remove from reviewed - No browser alerts
 function removeFromReviewed(cino) {
-    if (!confirm('Remove this case from reviewed? It will appear in pending cases again.')) {
-        return;
-    }
-    
-    fetch('/toggle_case_selection', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            cinos: [cino],
-            action: 'remove_from_reviewed'
+    // REPLACED: Browser confirm with custom confirm
+    showConfirm('Remove this case from reviewed? It will appear in pending cases again.', 'warning')
+    .then(confirmed => {
+        if (!confirmed) return;
+        
+        fetch('/toggle_case_selection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                cinos: [cino],
+                action: 'remove_from_reviewed'
+            })
         })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            throw new Error(data.error);
-        }
-        
-        showAlert('Case removed from reviewed section', 'success');
-        
-        setTimeout(() => {
-            location.reload();
-        }, 1000);
-    })
-    .catch(error => {
-        showAlert('Failed to remove from reviewed: ' + error.message, 'danger');
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            // REPLACED: Browser alert with custom alert
+            showAlert('Case removed from reviewed section', 'success');
+            
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        })
+        .catch(error => {
+            // REPLACED: Browser alert with custom alert
+            showAlert('Failed to remove from reviewed: ' + error.message, 'danger');
+        });
     });
 }
 
-// FIXED: Single toggle selection function
 function toggleAllSelection(tabId) {
     const container = getContainerByTabId(tabId);
     const checkboxes = container.querySelectorAll('.case-selection');
@@ -462,55 +449,62 @@ function updateBulkActions() {
     }
 }
 
+// UPDATED: Execute bulk action - No browser alerts
 function executeBulkAction(action) {
     if (selectedCases.size === 0) {
+        // REPLACED: Browser alert with custom alert
         showAlert('Please select at least one case', 'warning');
         return;
     }
     
     let confirmMessage = '';
+    let confirmType = 'warning';
+    
     if (action === 'mark_reviewed') {
         confirmMessage = `Mark ${selectedCases.size} cases as reviewed?`;
     } else if (action === 'remove_from_reviewed') {
         confirmMessage = `Remove ${selectedCases.size} cases from reviewed section?`;
     }
     
-    if (!confirm(confirmMessage)) {
-        return;
-    }
-    
-    fetch('/toggle_case_selection', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            cinos: Array.from(selectedCases),
-            action: action
+    // REPLACED: Browser confirm with custom confirm
+    showConfirm(confirmMessage, confirmType).then(confirmed => {
+        if (!confirmed) return;
+        
+        fetch('/toggle_case_selection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                cinos: Array.from(selectedCases),
+                action: action
+            })
         })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            throw new Error(data.error);
-        }
-        
-        const message = action === 'mark_reviewed' 
-            ? `Successfully marked ${data.marked_count || data.removed_count} cases as reviewed`
-            : `Successfully removed ${data.removed_count || data.marked_count} cases from reviewed section`;
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
             
-        showAlert(message, 'success');
-        
-        setTimeout(() => {
-            location.reload();
-        }, 1500);
-    })
-    .catch(error => {
-        showAlert('Bulk action failed: ' + error.message, 'danger');
+            const message = action === 'mark_reviewed' 
+                ? `Successfully marked ${data.marked_count || data.removed_count} cases as reviewed`
+                : `Successfully removed ${data.removed_count || data.marked_count} cases from reviewed section`;
+                
+            // REPLACED: Browser alert with custom alert
+            showAlert(message, 'success');
+            
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        })
+        .catch(error => {
+            // REPLACED: Browser alert with custom alert
+            showAlert('Bulk action failed: ' + error.message, 'danger');
+        });
     });
 }
 
-// User side selection modal
+// UPDATED: User side selection modal - No browser alerts
 function showUserSideModal(cino, currentSide) {
     const modalHtml = `
         <div class="modal fade" id="userSideModal" tabindex="-1">
@@ -537,18 +531,16 @@ function showUserSideModal(cino, currentSide) {
         </div>
     `;
     
-    // Remove existing modal
     const existing = document.getElementById('userSideModal');
     if (existing) existing.remove();
     
-    // Add new modal
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     
-    // Show modal
     const modal = new bootstrap.Modal(document.getElementById('userSideModal'));
     modal.show();
 }
 
+// UPDATED: Update user side - No browser alerts
 function updateUserSide(cino, userSide) {
     fetch(`/case/${cino}/update_user_side`, {
         method: 'POST',
@@ -565,9 +557,9 @@ function updateUserSide(cino, userSide) {
             throw new Error(data.error);
         }
         
+        // REPLACED: Browser alert with custom alert
         showAlert(`Client side updated to ${userSide}`, 'success');
         
-        // Close modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('userSideModal'));
         if (modal) modal.hide();
         
@@ -576,24 +568,22 @@ function updateUserSide(cino, userSide) {
         }, 1000);
     })
     .catch(error => {
+        // REPLACED: Browser alert with custom alert
         showAlert('Failed to update client side: ' + error.message, 'danger');
     });
 }
 
-// FIXED: Calendar functions with proper selection handling
+// UPDATED: Calendar functions - No browser alerts
 function showCalendarActionModal() {
     console.log('📅 Opening calendar action modal');
     console.log('📊 Selected cases:', Array.from(selectedCases));
     
-    // Get current tab to determine context
     const activeTab = document.querySelector('.nav-link.active');
     const tabText = activeTab ? activeTab.textContent.trim().split('\n')[0] : 'Unknown';
     
-    // Count all cases in current tab
     const activeTabPane = document.querySelector('.tab-pane.active');
     const allCasesInTab = activeTabPane ? activeTabPane.querySelectorAll('.case-card').length : 0;
     
-    // Populate modal with proper counts and options
     const modalCount = document.getElementById('modalSelectedCount');
     const modalAllCount = document.getElementById('modalAllCount');
     const modalTabName = document.getElementById('modalTabName');
@@ -603,7 +593,6 @@ function showCalendarActionModal() {
     if (modalAllCount) modalAllCount.textContent = allCasesInTab;
     if (modalTabName) modalTabName.textContent = tabText;
     
-    // Show different options based on selection
     const hasSelection = selectedCases.size > 0;
     const selectedOptions = document.getElementById('selectedCasesOptions');
     const allCasesOptions = document.getElementById('allCasesOptions');
@@ -615,13 +604,11 @@ function showCalendarActionModal() {
         allCasesOptions.style.display = 'block';
     }
     
-    // Update button counts
     const selectedCountBadge = document.getElementById('selectedCountBadge');
     const allCountBadge = document.getElementById('allCountBadge');
     if (selectedCountBadge) selectedCountBadge.textContent = selectedCases.size;
     if (allCountBadge) allCountBadge.textContent = allCasesInTab;
     
-    // Populate selected cases list
     if (casesList && hasSelection) {
         let casesHtml = '';
         let casesWithDates = 0;
@@ -650,7 +637,6 @@ function showCalendarActionModal() {
         
         casesList.innerHTML = casesHtml;
         
-        // Update cases with dates count
         const selectedWithDatesSpan = document.getElementById('selectedWithDates');
         if (selectedWithDatesSpan) {
             selectedWithDatesSpan.textContent = casesWithDates;
@@ -661,6 +647,7 @@ function showCalendarActionModal() {
     modal.show();
 }
 
+// UPDATED: Execute calendar action - No browser alerts
 function executeCalendarAction(action, scope = 'selected') {
     console.log('📅 Executing calendar action:', action, 'scope:', scope);
     
@@ -669,11 +656,11 @@ function executeCalendarAction(action, scope = 'selected') {
     
     if (scope === 'selected') {
         if (selectedCases.size === 0) {
+            // REPLACED: Browser alert with custom alert
             showAlert('No cases selected', 'warning');
             return;
         }
         
-        // FIXED: Get ONLY selected cases data
         selectedCases.forEach(cino => {
             const card = document.querySelector(`[data-cino="${cino}"]`);
             const caseData = extractCaseDataFromCard(card);
@@ -685,7 +672,6 @@ function executeCalendarAction(action, scope = 'selected') {
         filterType = 'selected_cases_only';
         
     } else if (scope === 'all') {
-        // Get all cases from current tab
         const activeTabPane = document.querySelector('.tab-pane.active');
         if (activeTabPane) {
             const allCards = activeTabPane.querySelectorAll('.case-card');
@@ -701,22 +687,20 @@ function executeCalendarAction(action, scope = 'selected') {
     }
     
     console.log('📊 Processing', casesToProcess.length, 'cases');
-    console.log('📋 Cases to process:', casesToProcess.map(c => c.cino));
     
     if (casesToProcess.length === 0) {
+        // REPLACED: Browser alert with custom alert
         showAlert('No cases to process', 'warning');
         return;
     }
     
     if (action === 'create') {
-        // Show progress modal
         showCalendarCreationProgress({
             total_cases: casesToProcess.length,
             cases_with_dates: casesToProcess.filter(c => c.date_next_list && c.date_next_list !== 'Not scheduled').length,
             scope: scope
         });
         
-        // FIXED: Send ONLY the selected cases to backend
         fetch('/create_calendar_events', {
             method: 'POST',
             headers: {
@@ -724,7 +708,7 @@ function executeCalendarAction(action, scope = 'selected') {
             },
             body: JSON.stringify({
                 filter: filterType,
-                cases: casesToProcess,  // FIXED: Send only selected cases
+                cases: casesToProcess,
                 scope: scope
             })
         })
@@ -736,13 +720,12 @@ function executeCalendarAction(action, scope = 'selected') {
                 throw new Error(data.error);
             }
             
+            // REPLACED: Browser alert with custom alert
             showAlert(`Calendar events created: ${data.created} created, ${data.updated || 0} updated`, 'success');
             
-            // Close modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('calendarActionModal'));
             if (modal) modal.hide();
             
-            // If we processed selected reviewed cases, remove them after success
             if (scope === 'selected' && currentTab === 'reviewed-cases') {
                 setTimeout(() => {
                     removeSelectedFromReviewed();
@@ -751,6 +734,7 @@ function executeCalendarAction(action, scope = 'selected') {
         })
         .catch(error => {
             hideCalendarCreationProgress();
+            // REPLACED: Browser alert with custom alert
             showAlert('Calendar creation failed: ' + error.message, 'danger');
         });
         
@@ -759,34 +743,36 @@ function executeCalendarAction(action, scope = 'selected') {
             ? `Delete calendar events for ${casesToProcess.length} selected cases?`
             : `Delete calendar events for all ${casesToProcess.length} cases in current tab?`;
             
-        if (!confirm(confirmMessage)) {
-            return;
-        }
-        
-        fetch('/delete_selected_calendar_events', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                cases: casesToProcess,
-                scope: scope
+        // REPLACED: Browser confirm with custom confirm
+        showConfirm(confirmMessage, 'danger').then(confirmed => {
+            if (!confirmed) return;
+            
+            fetch('/delete_selected_calendar_events', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    cases: casesToProcess,
+                    scope: scope
+                })
             })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                throw new Error(data.error);
-            }
-            
-            showAlert(`Deleted ${data.deleted} calendar events`, 'success');
-            
-            // Close modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('calendarActionModal'));
-            if (modal) modal.hide();
-        })
-        .catch(error => {
-            showAlert('Delete failed: ' + error.message, 'danger');
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // REPLACED: Browser alert with custom alert
+                showAlert(`Deleted ${data.deleted} calendar events`, 'success');
+                
+                const modal = bootstrap.Modal.getInstance(document.getElementById('calendarActionModal'));
+                if (modal) modal.hide();
+            })
+            .catch(error => {
+                // REPLACED: Browser alert with custom alert
+                showAlert('Delete failed: ' + error.message, 'danger');
+            });
         });
     }
 }
@@ -810,6 +796,7 @@ function removeSelectedFromReviewed() {
             throw new Error(data.error);
         }
         
+        // REPLACED: Browser alert with custom alert
         showAlert(`Removed ${data.removed_count} cases from reviewed section`, 'success');
         
         setTimeout(() => {
@@ -868,7 +855,6 @@ function extractFromDetails(text, field) {
     return match ? match[1].trim() : '';
 }
 
-// Progress functions
 function showCalendarCreationProgress(data) {
     console.log('📊 Showing calendar progress for', data.total_cases, 'cases');
     
@@ -905,7 +891,6 @@ function hideCalendarCreationProgress() {
         if (bootstrapModal) {
             bootstrapModal.hide();
         }
-        // Remove modal from DOM after hiding
         setTimeout(() => {
             if (modal.parentNode) {
                 modal.remove();
@@ -936,25 +921,19 @@ function openCaseDetail(cino) {
     window.location.href = `/case/${cino}`;
 }
 
+// DEPRECATED: Old showAlert function replaced by creative alert system
+// This function is kept for backward compatibility but now uses the new system
 function showAlert(message, type = 'info') {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    document.body.appendChild(alertDiv);
-    
-    setTimeout(() => {
-        if (alertDiv.parentNode) {
-            alertDiv.remove();
-        }
-    }, 5000);
+    // This will be handled by the new alert system automatically
+    if (window.alertSystem) {
+        return window.alertSystem.showAlert(message, type);
+    } else {
+        // Fallback for immediate use before alert system loads
+        console.log(`Alert (${type}): ${message}`);
+    }
 }
 
-// Delete all functionality
+// UPDATED: Delete all functionality - No browser alerts
 function showDeleteAllModal() {
     const modal = new bootstrap.Modal(document.getElementById('deleteAllModal'));
     modal.show();
@@ -971,36 +950,50 @@ function validateDeletionForm() {
     if (btn) btn.disabled = !isValid;
 }
 
+// UPDATED: Execute delete all - No browser alerts
 function executeDeleteAll() {
-    if (!confirm('This is your FINAL WARNING!\n\nAre you absolutely sure?')) {
-        return;
-    }
-    
-    fetch('/delete_all_cases_and_calendar', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            confirmation: 'DELETE_ALL_FOREVER'
+    // REPLACED: Browser confirm with custom confirm
+    showConfirm('This is your FINAL WARNING!\n\nAre you absolutely sure?', 'danger', 'Final Confirmation')
+    .then(confirmed => {
+        if (!confirmed) return;
+        
+        const loadingAlert = showLoadingAlert('Deleting all cases and calendar events...', 'danger');
+        
+        fetch('/delete_all_cases_and_calendar', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                confirmation: 'DELETE_ALL_FOREVER'
+            })
         })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            throw new Error(data.error);
-        }
-        
-        showAlert('All cases and calendar events deleted successfully!', 'success');
-        
-        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteAllModal'));
-        if (modal) modal.hide();
-        
-        setTimeout(() => {
-            window.location.href = '/upload_page';
-        }, 3000);
-    })
-    .catch(error => {
-        showAlert('Deletion failed: ' + error.message, 'danger');
+        .then(response => response.json())
+        .then(data => {
+            if (loadingAlert && window.alertSystem) {
+                window.alertSystem.removeAlert(loadingAlert);
+            }
+            
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            // REPLACED: Browser alert with custom alert
+            showAlert('All cases and calendar events deleted successfully!', 'success');
+            
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteAllModal'));
+            if (modal) modal.hide();
+            
+            setTimeout(() => {
+                window.location.href = '/upload_page';
+            }, 3000);
+        })
+        .catch(error => {
+            if (loadingAlert && window.alertSystem) {
+                window.alertSystem.removeAlert(loadingAlert);
+            }
+            // REPLACED: Browser alert with custom alert
+            showAlert('Deletion failed: ' + error.message, 'danger');
+        });
     });
 }
