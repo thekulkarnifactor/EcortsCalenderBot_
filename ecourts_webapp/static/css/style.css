@@ -22,6 +22,292 @@ body {
 }
 
 
+/* Logo Styling */
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--primary-blue);
+    transition: all 0.3s ease;
+}
+
+.logo-image {
+    height: 60px;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(37, 99, 235, 0.2));
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.logo:hover .logo-image {
+    filter: drop-shadow(0 4px 8px rgba(37, 99, 235, 0.3));
+    transform: scale(1.05) rotate(2deg);
+}
+
+
+/* Logo Text */
+
+.logo-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e3a8a;
+    /* Deep professional blue */
+    text-shadow: 0 2px 4px rgba(30, 58, 138, 0.15);
+    letter-spacing: -0.02em;
+    background: linear-gradient( 135deg, #1e3a8a 0%, /* Deep blue */
+    #3b82f6 35%, /* Medium blue */
+    #60a5fa 70%, /* Light blue */
+    #93c5fd 100%/* Very light blue */
+    );
+    background-size: 200% 200%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.logo:hover .logo-text {
+    background: linear-gradient( 135deg, #1e40af 0%, /* Darker blue on hover */
+    #2563eb 35%, #3b82f6 70%, #60a5fa 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    text-shadow: 0 3px 6px rgba(30, 58, 138, 0.2);
+    transform: scale(1.02);
+}
+
+
+/* Logo Link Styling */
+
+.logo-link {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.3s ease;
+    padding: 0.75rem 1rem;
+    border-radius: 1rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.logo-link::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(30, 58, 138, 0.05) 0%, rgba(59, 130, 246, 0.02) 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: -1;
+}
+
+.logo-link:hover::before {
+    opacity: 1;
+}
+
+.logo-link:hover {
+    text-decoration: none;
+    color: inherit;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(30, 58, 138, 0.15);
+}
+
+.logo-link:hover .logo-image {
+    filter: drop-shadow(0 4px 8px rgba(30, 58, 138, 0.3));
+    transform: scale(1.05) rotate(3deg);
+}
+
+.logo-link:hover .logo-text {
+    background: linear-gradient( 135deg, #1e40af 0%, #2563eb 35%, #3b82f6 70%, #60a5fa 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    text-shadow: 0 3px 6px rgba(30, 58, 138, 0.2);
+    transform: scale(1.02);
+}
+
+
+/* Ensure the logo container maintains its styling */
+
+.logo {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+
+/* Keep existing logo-image and logo-text styling */
+
+.logo-image {
+    height: 60px;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(30, 58, 138, 0.2));
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.logo-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e3a8a;
+    text-shadow: 0 2px 4px rgba(30, 58, 138, 0.15);
+    letter-spacing: -0.02em;
+    background: linear-gradient( 135deg, #1e3a8a 0%, #3b82f6 35%, #60a5fa 70%, #93c5fd 100%);
+    background-size: 200% 200%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+
+/* Navbar brand styling enhancement */
+
+.navbar-brand {
+    font-weight: 600;
+    color: #1e3a8a !important;
+    transition: all 0.3s ease;
+    text-decoration: none;
+}
+
+.navbar-brand:hover {
+    color: #2563eb !important;
+    text-decoration: none;
+    transform: translateY(-1px);
+}
+
+.navbar-brand i {
+    color: #3b82f6;
+    transition: all 0.3s ease;
+}
+
+.navbar-brand:hover i {
+    color: #1d4ed8;
+    transform: rotate(10deg);
+}
+
+
+/* Responsive adjustments */
+
+@media (max-width: 768px) {
+    .logo-text {
+        font-size: 1.3rem;
+    }
+    .logo-image {
+        height: 50px;
+    }
+    .logo-link {
+        padding: 0.5rem 0.75rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .logo-link {
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
+    }
+    .logo-text {
+        font-size: 1.2rem;
+    }
+}
+
+
+/* Enhanced logo container for better interaction */
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 1.5rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 0.75rem 1rem;
+    border-radius: 1rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.logo:hover {
+    background: linear-gradient(135deg, rgba(30, 58, 138, 0.08) 0%, rgba(59, 130, 246, 0.04) 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(30, 58, 138, 0.15);
+}
+
+.logo-image {
+    height: 60px;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(30, 58, 138, 0.2));
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.logo:hover .logo-image {
+    filter: drop-shadow(0 4px 8px rgba(30, 58, 138, 0.3));
+    transform: scale(1.05) rotate(2deg);
+}
+
+
+/* Responsive adjustments */
+
+@media (max-width: 768px) {
+    .logo-text {
+        font-size: 1.3rem;
+    }
+    .logo-image {
+        height: 50px;
+    }
+}
+
+@media (max-width: 576px) {
+    .logo {
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
+    }
+    .logo-text {
+        font-size: 1.2rem;
+    }
+}
+
+.logo:hover {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(59, 130, 246, 0.05));
+    transform: translateY(-1px);
+    padding: 0.5rem;
+    border-radius: 0.75rem;
+}
+
+.logo:hover .logo-text {
+    background: linear-gradient(135deg, #1d4ed8, var(--primary-blue));
+    background-clip: text;
+    -webkit-background-clip: text;
+}
+
+.logo-image:hover {
+    filter: drop-shadow(0 4px 8px rgba(37, 99, 235, 0.3));
+    transform: scale(1.05);
+}
+
+.logo-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    text-shadow: 0 1px 2px rgba(37, 99, 235, 0.1);
+    letter-spacing: -0.025em;
+}
+
+
 /* Upload Button Styling */
 
 .btn-info {
@@ -505,6 +791,15 @@ body {
 /* Responsive Enhancements */
 
 @media (max-width: 768px) {
+    .logo {
+        font-size: 1.25rem;
+    }
+    .logo-image {
+        height: 45px;
+    }
+    .logo-text {
+        font-size: 1.25rem;
+    }
     .case-card {
         height: 480px !important;
         min-height: 480px !important;
@@ -516,6 +811,17 @@ body {
     .btn-save-all {
         width: 100%;
         margin-bottom: 1rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .logo {
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
+    }
+    .logo-text {
+        font-size: 1.1rem;
     }
 }
 
