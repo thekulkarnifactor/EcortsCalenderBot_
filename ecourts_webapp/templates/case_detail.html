@@ -197,7 +197,33 @@
     }
 
     function saveCurrentNotes(cino) {
-        const notes = document.getElementById('currentNotes').value;
+        console.log('Saving notes for case:', cino);
+
+        // Try multiple selectors to find the notes input
+        let notesInput = document.querySelector('#notes-input') ||
+            document.querySelector('.notes-input') ||
+            document.querySelector('textarea[name="notes"]') ||
+            document.querySelector('textarea');
+
+        if (!notesInput) {
+            showAlert('Notes input field not found!', 'danger');
+            console.error('Could not find notes input field');
+            return;
+        }
+
+        let notes = notesInput.value.trim();
+        console.log('Notes content:', notes);
+
+        if (!notes) {
+            showAlert('Please enter some notes before saving', 'warning');
+            return;
+        }
+
+        // Disable button during save
+        let saveButton = event.target;
+        let originalText = saveButton.innerHTML;
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Saving...';
 
         fetch(`/case/${cino}/update`, {
                 method: 'POST',
@@ -210,14 +236,20 @@
             })
             .then(response => response.json())
             .then(data => {
-                if (data.success) {
-                    showAlert('Notes saved successfully', 'success');
+                if (data.error) {
+                    showAlert('Failed to save notes: ' + data.error, 'danger');
                 } else {
-                    showAlert('Failed to save notes: ' + (data.error || 'Unknown error'), 'warning');
+                    showAlert('Notes saved successfully!', 'success');
                 }
             })
             .catch(error => {
-                showAlert('Error saving notes: ' + error.message, 'danger');
+                console.error('Save error:', error);
+                showAlert('Failed to save notes: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                // Re-enable button
+                saveButton.disabled = false;
+                saveButton.innerHTML = originalText;
             });
     }
 
