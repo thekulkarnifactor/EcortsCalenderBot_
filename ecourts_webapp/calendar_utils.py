@@ -8,8 +8,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
 SCOPES = [
-    'https://www.googleapis.com/auth/calendar',           # Full calendar access
-    'https://www.googleapis.com/auth/calendar.events'     # Events access
+    'https://www.googleapis.com/auth/calendar',  # Full calendar access
+    'https://www.googleapis.com/auth/calendar.events'  # Events access
 ]
 
 def google_calendar_authenticate(
@@ -21,13 +21,12 @@ def google_calendar_authenticate(
     Authenticate and return Google Calendar API credentials.
     """
     creds = None
-    
     # Load existing token
     if os.path.exists(token_path):
         try:
             with open(token_path, 'rb') as token_file:
                 creds = pickle.load(token_file)
-                print("✅ Loaded existing credentials")
+            print("✅ Loaded existing credentials")
         except Exception as e:
             print(f"⚠️ Error loading token: {e}")
             # Delete corrupted token
@@ -44,13 +43,12 @@ def google_calendar_authenticate(
             except Exception as refresh_error:
                 print(f"❌ Refresh failed: {refresh_error}")
                 creds = None
-        
+
         # If refresh failed or no credentials, get new ones
         if not creds:
             try:
                 print("🔐 Starting new authentication flow...")
                 print(f"📱 Using port: {port}")
-                
                 if not os.path.exists(creds_path):
                     print(f"❌ Credentials file not found: {creds_path}")
                     return None
@@ -63,19 +61,18 @@ def google_calendar_authenticate(
                     include_granted_scopes='true'
                 )
                 print("✅ New authentication successful")
-                
             except Exception as auth_error:
                 print(f"❌ Authentication failed: {auth_error}")
                 return None
 
-        # Save the credentials for the next run
-        try:
-            os.makedirs(os.path.dirname(token_path), exist_ok=True)
-            with open(token_path, 'wb') as token_file:
-                pickle.dump(creds, token_file)
-                print("✅ Credentials saved successfully")
-        except Exception as save_error:
-            print(f"⚠️ Could not save credentials: {save_error}")
+    # Save the credentials for the next run
+    try:
+        os.makedirs(os.path.dirname(token_path), exist_ok=True)
+        with open(token_path, 'wb') as token_file:
+            pickle.dump(creds, token_file)
+        print("✅ Credentials saved successfully")
+    except Exception as save_error:
+        print(f"⚠️ Could not save credentials: {save_error}")
 
     return creds
 

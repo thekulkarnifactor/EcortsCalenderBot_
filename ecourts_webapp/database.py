@@ -14,32 +14,32 @@ class CaseDatabase:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        # Cases table with new columns
+        # Cases table with new columns - FIXED: DEFAULT FALSE for is_changed
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS cases (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cino TEXT UNIQUE,
-                case_no TEXT,
-                petparty_name TEXT,
-                resparty_name TEXT,
-                establishment_name TEXT,
-                state_name TEXT,
-                district_name TEXT,
-                date_next_list TEXT,
-                date_last_list TEXT,
-                purpose_name TEXT,
-                type_name TEXT,
-                court_no_desg_name TEXT,
-                disp_name TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                user_notes TEXT DEFAULT '',
-                is_changed BOOLEAN DEFAULT TRUE,
-                change_summary TEXT DEFAULT '',
-                raw_data TEXT,
-                user_side TEXT DEFAULT '',
-                reg_no INTEGER,
-                reg_year INTEGER
-            )
+        CREATE TABLE IF NOT EXISTS cases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cino TEXT UNIQUE,
+            case_no TEXT,
+            petparty_name TEXT,
+            resparty_name TEXT,
+            establishment_name TEXT,
+            state_name TEXT,
+            district_name TEXT,
+            date_next_list TEXT,
+            date_last_list TEXT,
+            purpose_name TEXT,
+            type_name TEXT,
+            court_no_desg_name TEXT,
+            disp_name TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            user_notes TEXT DEFAULT '',
+            is_changed BOOLEAN DEFAULT FALSE,
+            change_summary TEXT DEFAULT '',
+            raw_data TEXT,
+            user_side TEXT DEFAULT '',
+            reg_no INTEGER,
+            reg_year INTEGER
+        )
         """)
 
         # Add new columns if they don't exist (for existing databases)
@@ -47,12 +47,10 @@ class CaseDatabase:
             cursor.execute("ALTER TABLE cases ADD COLUMN user_side TEXT DEFAULT ''")
         except sqlite3.OperationalError:
             pass # Column already exists
-
         try:
             cursor.execute("ALTER TABLE cases ADD COLUMN reg_no INTEGER")
         except sqlite3.OperationalError:
             pass
-
         try:
             cursor.execute("ALTER TABLE cases ADD COLUMN reg_year INTEGER")
         except sqlite3.OperationalError:
@@ -60,26 +58,26 @@ class CaseDatabase:
 
         # Change history table
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS case_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cino TEXT,
-                field_name TEXT,
-                old_value TEXT,
-                new_value TEXT,
-                changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (cino) REFERENCES cases (cino)
-            )
+        CREATE TABLE IF NOT EXISTS case_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cino TEXT,
+            field_name TEXT,
+            old_value TEXT,
+            new_value TEXT,
+            changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (cino) REFERENCES cases (cino)
+        )
         """)
-
+        
         conn.commit()
         conn.close()
 
     def process_daily_file(self, file_path: str) -> Dict[str, int]:
-        """Process daily myCases.txt file and detect changes"""
+        """Process daily myCases.txt file and detect changes - FIXED"""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 raw_content = f.read().strip()
-
+                
             if not raw_content:
                 return {"error": "File is empty"}
 
@@ -102,7 +100,6 @@ class CaseDatabase:
                     data_list = [parsed]
                 else:
                     raise ValueError("Invalid JSON format")
-            
             except (json.JSONDecodeError, ValueError):
                 try:
                     # Format 2: One JSON object per line
@@ -121,13 +118,13 @@ class CaseDatabase:
             # Process the data
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-
+            
             stats = {"new": 0, "updated": 0, "unchanged": 0}
-
+            
             for case_data in data_list:
                 if not isinstance(case_data, dict):
                     continue
-
+                    
                 cino = case_data.get('cino')
                 if not cino:
                     continue
@@ -135,23 +132,24 @@ class CaseDatabase:
                 # Check if case exists
                 cursor.execute("SELECT * FROM cases WHERE cino = ?", (cino,))
                 existing_case = cursor.fetchone()
-
+                
                 if existing_case:
                     # Check for changes
                     changes = self._detect_changes(existing_case, case_data)
                     if changes:
+                        # ONLY cases with actual changes are marked for review
                         self._update_case_with_changes(cursor, cino, case_data, changes)
                         stats["updated"] += 1
                     else:
                         stats["unchanged"] += 1
                 else:
-                    # New case - FIXED: Always mark as changed (pending review)
+                    # FIXED: New case - insert as NOT CHANGED (is_changed=FALSE)
                     self._insert_new_case(cursor, case_data)
                     stats["new"] += 1
 
             conn.commit()
             conn.close()
-
+            
             print("📊 Daily file processed:", stats)
             return stats
 
@@ -175,27 +173,27 @@ class CaseDatabase:
             # Handle None values properly
             old_value = existing_case[idx] if existing_case[idx] is not None else ""
             new_value = str(new_data.get(field_name, "") or "") # Handle None from new_data too
-
+            
             if old_value != new_value:
                 changes.append({
                     'field': field_name,
                     'old_value': old_value,
                     'new_value': new_value
                 })
-
+                
         return changes
 
     def _update_case_with_changes(self, cursor, cino: str, case_data: dict, changes: List[Dict]):
-        """Update case and record changes"""
+        """Update case and record changes - Mark as pending review"""
         # Update main case record with proper None handling
         cursor.execute("""
-            UPDATE cases SET
-                case_no=?, petparty_name=?, resparty_name=?, establishment_name=?,
-                state_name=?, district_name=?, date_next_list=?, date_last_list=?,
-                purpose_name=?, type_name=?, court_no_desg_name=?, disp_name=?,
-                is_changed=TRUE, change_summary=?, raw_data=?, updated_at=CURRENT_TIMESTAMP,
-                reg_no=?, reg_year=?
-            WHERE cino=?
+        UPDATE cases SET
+            case_no=?, petparty_name=?, resparty_name=?, establishment_name=?,
+            state_name=?, district_name=?, date_next_list=?, date_last_list=?,
+            purpose_name=?, type_name=?, court_no_desg_name=?, disp_name=?,
+            is_changed=TRUE, change_summary=?, raw_data=?, updated_at=CURRENT_TIMESTAMP,
+            reg_no=?, reg_year=?
+        WHERE cino=?
         """, (
             case_data.get('case_no') or '',
             case_data.get('petparty_name') or '',
@@ -215,23 +213,23 @@ class CaseDatabase:
             case_data.get('reg_year'),
             cino
         ))
-
+        
         # Record individual changes
         for change in changes:
             cursor.execute("""
-                INSERT INTO case_history (cino, field_name, old_value, new_value)
-                VALUES (?, ?, ?, ?)
+            INSERT INTO case_history (cino, field_name, old_value, new_value)
+            VALUES (?, ?, ?, ?)
             """, (cino, change['field'], change['old_value'], change['new_value']))
 
     def _insert_new_case(self, cursor, case_data: dict):
-        """Insert new case record - ALWAYS as pending (is_changed=TRUE) - FIXED"""
+        """Insert new case record - FIXED: New cases are NOT marked as changed"""
         cursor.execute("""
-            INSERT INTO cases (
-                cino, case_no, petparty_name, resparty_name, establishment_name,
-                state_name, district_name, date_next_list, date_last_list,
-                purpose_name, type_name, court_no_desg_name, disp_name, raw_data,
-                reg_no, reg_year, is_changed
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO cases (
+            cino, case_no, petparty_name, resparty_name, establishment_name,
+            state_name, district_name, date_next_list, date_last_list,
+            purpose_name, type_name, court_no_desg_name, disp_name, raw_data,
+            reg_no, reg_year, is_changed
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             case_data.get('cino') or '',
             case_data.get('case_no') or '',
@@ -249,7 +247,7 @@ class CaseDatabase:
             json.dumps(case_data),
             case_data.get('reg_no'),
             case_data.get('reg_year'),
-            True  # FIXED: Always set as TRUE (pending review)
+            False # FIXED: New cases are NOT pending review (is_changed=FALSE)
         ))
 
     def create_new_case(self, case_data: dict) -> tuple[bool, str]:
@@ -263,12 +261,12 @@ class CaseDatabase:
             if cursor.fetchone():
                 conn.close()
                 return False, "Case with this CINO already exists"
-
+                
             self._insert_new_case(cursor, case_data)
             conn.commit()
             conn.close()
             return True, "Case created successfully"
-
+            
         except Exception as e:
             print(f"Error creating case: {e}")
             return False, str(e)
@@ -277,27 +275,22 @@ class CaseDatabase:
         """Get all cases with change status"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
         cursor.execute("""
-            SELECT * FROM cases ORDER BY
+        SELECT * FROM cases ORDER BY
             CASE WHEN is_changed = 1 THEN 0 ELSE 1 END,
             updated_at DESC
         """)
-        
         cases = cursor.fetchall()
         conn.close()
-        
         return [self._row_to_dict(case) for case in cases]
 
     def get_case_by_cino(self, cino: str) -> Optional[Dict]:
         """Get specific case by CINO"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
         cursor.execute("SELECT * FROM cases WHERE cino = ?", (cino,))
         case = cursor.fetchone()
         conn.close()
-        
         return self._row_to_dict(case) if case else None
 
     def update_case_notes(self, cino: str, notes: str, other_updates: dict = None) -> bool:
@@ -313,16 +306,15 @@ class CaseDatabase:
             for field, value in other_updates.items():
                 update_fields.append(f"{field} = ?")
                 values.append(value)
-            
+                
             values.append(cino)
-            
             cursor.execute(f"""
-                UPDATE cases SET {', '.join(update_fields)}
-                WHERE cino = ?
+            UPDATE cases SET {', '.join(update_fields)}
+            WHERE cino = ?
             """, values)
         else:
             cursor.execute("UPDATE cases SET user_notes = ? WHERE cino = ?", (notes, cino))
-        
+            
         conn.commit()
         conn.close()
         return True
@@ -334,16 +326,16 @@ class CaseDatabase:
             cursor = conn.cursor()
             
             cursor.execute("""
-                UPDATE cases 
-                SET is_changed = FALSE,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE cino = ?
+            UPDATE cases
+            SET is_changed = FALSE,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE cino = ?
             """, (cino,))
             
             # Record in history
             cursor.execute("""
-                INSERT INTO case_history (cino, field_name, old_value, new_value)
-                VALUES (?, 'marked_reviewed', 'pending', 'reviewed')
+            INSERT INTO case_history (cino, field_name, old_value, new_value)
+            VALUES (?, 'marked_reviewed', 'pending', 'reviewed')
             """, (cino,))
             
             conn.commit()
@@ -352,7 +344,6 @@ class CaseDatabase:
             
             if success:
                 print(f"✅ Marked case {cino} as reviewed")
-            
             return success
             
         except Exception as e:
@@ -360,19 +351,16 @@ class CaseDatabase:
             return False
 
     def get_reviewed_cases_with_notes(self) -> List[Dict]:
-        """Get cases that have been reviewed (is_changed = FALSE) - FIXED"""
+        """Get cases that have been reviewed (is_changed = FALSE)"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
         cursor.execute("""
-            SELECT * FROM cases
-            WHERE is_changed = FALSE
-            ORDER BY updated_at DESC
+        SELECT * FROM cases
+        WHERE is_changed = FALSE
+        ORDER BY updated_at DESC
         """)
-        
         cases = cursor.fetchall()
         conn.close()
-        
         return [self._row_to_dict(case) for case in cases]
 
     def get_petitioner_cases(self) -> List[Dict]:
@@ -403,46 +391,46 @@ class CaseDatabase:
         return [self._row_to_dict(case) for case in cases]
 
     def get_case_counts(self) -> Dict[str, int]:
-        """Get counts for law firm dashboard - FIXED"""
+        """Get counts for law firm dashboard"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-
+        
         # Total cases
         cursor.execute("SELECT COUNT(*) FROM cases")
         total_cases = cursor.fetchone()[0]
-
-        # Changed cases (pending review)
+        
+        # Changed cases (pending review) 
         cursor.execute("SELECT COUNT(*) FROM cases WHERE is_changed = TRUE")
         changed_cases = cursor.fetchone()[0]
-
-        # FIXED: Reviewed cases (is_changed = FALSE only)
+        
+        # Reviewed cases (is_changed = FALSE only)
         cursor.execute("SELECT COUNT(*) FROM cases WHERE is_changed = FALSE")
         reviewed_cases = cursor.fetchone()[0]
-
+        
         # Petitioner cases
         cursor.execute("SELECT COUNT(*) FROM cases WHERE user_side = 'petitioner'")
         petitioner_cases = cursor.fetchone()[0]
-
+        
         # Respondent cases
         cursor.execute("SELECT COUNT(*) FROM cases WHERE user_side = 'respondent'")
         respondent_cases = cursor.fetchone()[0]
-
+        
         # Cases without user side set
         cursor.execute("SELECT COUNT(*) FROM cases WHERE user_side IS NULL OR user_side = ''")
         cases_without_user_side = cursor.fetchone()[0]
-
+        
         # Upcoming hearings
         cursor.execute("""
-            SELECT COUNT(*) FROM cases
-            WHERE date_next_list IS NOT NULL
-            AND date_next_list != ''
-            AND date_next_list != 'Not scheduled'
-            AND date(date_next_list) >= date('now')
+        SELECT COUNT(*) FROM cases
+        WHERE date_next_list IS NOT NULL
+        AND date_next_list != ''
+        AND date_next_list != 'Not scheduled'
+        AND date(date_next_list) >= date('now')
         """)
         upcoming_hearings = cursor.fetchone()[0]
-
+        
         conn.close()
-
+        
         return {
             'total_cases': total_cases,
             'changed_cases': changed_cases,
@@ -458,26 +446,25 @@ class CaseDatabase:
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            
             marked_count = 0
             
             for cino in cinos:
                 cursor.execute("""
-                    UPDATE cases 
-                    SET is_changed = FALSE,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE cino = ?
+                UPDATE cases
+                SET is_changed = FALSE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE cino = ?
                 """, (cino,))
                 
                 if cursor.rowcount > 0:
                     marked_count += 1
                     
-                    # Record in history
-                    cursor.execute("""
-                        INSERT INTO case_history (cino, field_name, old_value, new_value)
-                        VALUES (?, 'bulk_marked_reviewed', 'pending', 'reviewed')
-                    """, (cino,))
-            
+                # Record in history
+                cursor.execute("""
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'bulk_marked_reviewed', 'pending', 'reviewed')
+                """, (cino,))
+                    
             conn.commit()
             conn.close()
             
@@ -493,27 +480,26 @@ class CaseDatabase:
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            
             removed_count = 0
             
             for cino in cinos:
                 # Mark as changed (removes from reviewed) but keep notes
                 cursor.execute("""
-                    UPDATE cases 
-                    SET is_changed = TRUE,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE cino = ? AND is_changed = FALSE
+                UPDATE cases
+                SET is_changed = TRUE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE cino = ? AND is_changed = FALSE
                 """, (cino,))
                 
                 if cursor.rowcount > 0:
                     removed_count += 1
                     
-                    # Record in history
-                    cursor.execute("""
-                        INSERT INTO case_history (cino, field_name, old_value, new_value)
-                        VALUES (?, 'removed_from_reviewed', 'reviewed', 'pending')
-                    """, (cino,))
-            
+                # Record in history
+                cursor.execute("""
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'removed_from_reviewed', 'reviewed', 'pending')
+                """, (cino,))
+                    
             conn.commit()
             conn.close()
             
@@ -531,16 +517,16 @@ class CaseDatabase:
             cursor = conn.cursor()
             
             cursor.execute("""
-                UPDATE cases 
-                SET user_side = ?, 
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE cino = ?
+            UPDATE cases
+            SET user_side = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE cino = ?
             """, (user_side, cino))
             
             # Record the change in history
             cursor.execute("""
-                INSERT INTO case_history (cino, field_name, old_value, new_value)
-                VALUES (?, 'user_side_updated', '', ?)
+            INSERT INTO case_history (cino, field_name, old_value, new_value)
+            VALUES (?, 'user_side_updated', '', ?)
             """, (cino, user_side))
             
             conn.commit()
@@ -549,7 +535,6 @@ class CaseDatabase:
             
             if success:
                 print(f"✅ Updated user side for case {cino}: {user_side}")
-            
             return success
             
         except Exception as e:
@@ -560,7 +545,7 @@ class CaseDatabase:
         """Convert database row to dictionary"""
         if not row:
             return None
-        
+            
         columns = [
             'id', 'cino', 'case_no', 'petparty_name', 'resparty_name',
             'establishment_name', 'state_name', 'district_name', 'date_next_list',
@@ -598,6 +583,7 @@ class CaseDatabase:
             conn.close()
             
             print(f"🗑️ All cases deleted permanently: {cases_count} cases, {history_count} history records")
+            
             return {
                 'cases_deleted': cases_count,
                 'history_deleted': history_count,
@@ -622,7 +608,7 @@ class CaseDatabase:
             if not backup_path:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                 backup_path = f"data/backup_cases_{timestamp}.db"
-            
+                
             # Create backup directory if it doesn't exist
             os.makedirs(os.path.dirname(backup_path), exist_ok=True)
             
@@ -647,15 +633,15 @@ class CaseDatabase:
             cursor = conn.cursor()
             
             cursor.execute("""
-                UPDATE cases 
-                SET purpose_name = ?, updated_at = CURRENT_TIMESTAMP 
-                WHERE cino = ?
+            UPDATE cases
+            SET purpose_name = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE cino = ?
             """, (purpose, cino))
             
             # Record the change in history
             cursor.execute("""
-                INSERT INTO case_history (cino, field_name, old_value, new_value)
-                VALUES (?, 'purpose_updated', '', ?)
+            INSERT INTO case_history (cino, field_name, old_value, new_value)
+            VALUES (?, 'purpose_updated', '', ?)
             """, (cino, purpose))
             
             conn.commit()
@@ -664,27 +650,25 @@ class CaseDatabase:
             
             if success:
                 print(f"✅ Updated purpose for case {cino}: {purpose}")
-            
             return success
+            
         except Exception as e:
             print(f"Error updating purpose: {e}")
             return False
 
-    def get_changed_cases(self) -> List[Dict]:        
+    def get_changed_cases(self) -> List[Dict]:
         """Get cases that have changes (is_changed = TRUE)"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
         cursor.execute("""
-            SELECT * FROM cases 
-            WHERE is_changed = TRUE 
-            ORDER BY updated_at DESC
+        SELECT * FROM cases
+        WHERE is_changed = TRUE
+        ORDER BY updated_at DESC
         """)
         cases = cursor.fetchall()
         conn.close()
-        
         return [self._row_to_dict(case) for case in cases]
-    
+
     def update_case_hearing_date(self, cino: str, hearing_date: str) -> bool:
         """Update case hearing date"""
         try:
@@ -692,16 +676,16 @@ class CaseDatabase:
             cursor = conn.cursor()
             
             cursor.execute("""
-                UPDATE cases
-                SET date_next_list = ?, 
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE cino = ?
+            UPDATE cases
+            SET date_next_list = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE cino = ?
             """, (hearing_date, cino))
             
             # Record the change in history
             cursor.execute("""
-                INSERT INTO case_history (cino, field_name, old_value, new_value)
-                VALUES (?, 'hearing_date_updated', '', ?)
+            INSERT INTO case_history (cino, field_name, old_value, new_value)
+            VALUES (?, 'hearing_date_updated', '', ?)
             """, (cino, hearing_date))
             
             conn.commit()
@@ -711,10 +695,11 @@ class CaseDatabase:
             if success:
                 print(f"✅ Updated hearing date for case {cino}: {hearing_date}")
             return success
+            
         except Exception as e:
             print(f"Error updating hearing date: {e}")
             return False
-        
+
     def update_case_hearing_date_with_history(self, cino, new_hearing_date, notes):
         """Update hearing date with proper fallback logic for last hearing date"""
         try:
@@ -729,28 +714,26 @@ class CaseDatabase:
             current_last_hearing = None
             
             if result:
-                prev_next_hearing = result[0]  # Current next hearing becomes last hearing
-                current_last_hearing = result[1]  # Current last hearing (for fallback)
+                prev_next_hearing = result[0] # Current next hearing becomes last hearing
+                current_last_hearing = result[1] # Current last hearing (for fallback)
                 print(f"📅 DB - Current Next: {prev_next_hearing}, Current Last: {current_last_hearing}")
 
             # Step 2: Fallback to mycases.txt if no next hearing date in database
             if not prev_next_hearing or prev_next_hearing in ['', 'Not set', 'Not scheduled']:
                 print("🔍 No next hearing in DB, checking mycases.txt...")
-                
                 try:
                     # Check if mycases.txt exists
                     mycases_path = 'data/myCases.txt'
                     if os.path.exists(mycases_path):
                         with open(mycases_path, 'r', encoding='utf-8') as f:
                             content = f.read().strip()
-                            
+                        
                         # Parse different formats
                         if content:
                             try:
                                 # Try JSON format first
                                 parsed = json.loads(content)
                                 cases_list = []
-                                
                                 if isinstance(parsed, list):
                                     if all(isinstance(item, str) for item in parsed):
                                         cases_list = [json.loads(item) for item in parsed]
@@ -758,7 +741,6 @@ class CaseDatabase:
                                         cases_list = parsed
                                 elif isinstance(parsed, dict):
                                     cases_list = [parsed]
-                                    
                             except json.JSONDecodeError:
                                 # Try line-by-line format
                                 cases_list = []
@@ -783,7 +765,7 @@ class CaseDatabase:
                                         prev_next_hearing = mycases_last_date
                                         print(f"📄 Using last date from mycases.txt: {mycases_last_date}")
                                     break
-                            
+                
                 except Exception as fallback_error:
                     print(f"⚠️ Fallback to mycases.txt failed: {fallback_error}")
 
@@ -794,26 +776,26 @@ class CaseDatabase:
 
             # Step 4: Update the database
             cursor.execute("""
-                UPDATE cases SET 
-                    date_next_list = ?, 
-                    date_last_list = ?, 
-                    user_notes = ?, 
-                    updated_at = CURRENT_TIMESTAMP 
-                WHERE cino = ?
+            UPDATE cases SET
+                date_next_list = ?,
+                date_last_list = ?,
+                user_notes = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE cino = ?
             """, (new_hearing_date, prev_next_hearing, notes, cino))
 
             # Step 5: Save notes history for the previous date
             if notes and prev_next_hearing:
                 cursor.execute("""
-                    INSERT INTO case_history (cino, field_name, old_value, new_value) 
-                    VALUES (?, 'notes_for_date', ?, ?)
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'notes_for_date', ?, ?)
                 """, (cino, prev_next_hearing, notes))
                 print(f"📝 Saved notes for date: {prev_next_hearing}")
 
             # Step 6: Record the hearing date change
             cursor.execute("""
-                INSERT INTO case_history (cino, field_name, old_value, new_value)
-                VALUES (?, 'hearing_date_updated', ?, ?)
+            INSERT INTO case_history (cino, field_name, old_value, new_value)
+            VALUES (?, 'hearing_date_updated', ?, ?)
             """, (cino, prev_next_hearing or 'No previous date', new_hearing_date))
 
             conn.commit()
@@ -826,7 +808,6 @@ class CaseDatabase:
             print(f"❌ Error updating hearing date with history: {e}")
             return False
 
-
     def get_case_notes_history(self, cino: str) -> List[Dict]:
         """Get notes history for a case grouped by hearing dates"""
         try:
@@ -834,10 +815,10 @@ class CaseDatabase:
             cursor = conn.cursor()
             
             cursor.execute("""
-                SELECT old_value as hearing_date, new_value as notes, changed_at
-                FROM case_history 
-                WHERE cino = ? AND field_name = 'notes_for_date'
-                ORDER BY changed_at DESC
+            SELECT old_value as hearing_date, new_value as notes, changed_at
+            FROM case_history
+            WHERE cino = ? AND field_name = 'notes_for_date'
+            ORDER BY changed_at DESC
             """, (cino,))
             
             history = cursor.fetchall()
@@ -851,6 +832,7 @@ class CaseDatabase:
                 }
                 for row in history
             ]
+            
         except Exception as e:
             print(f"Error getting notes history: {e}")
             return []
@@ -863,41 +845,40 @@ class CaseDatabase:
             
             # Valid fields that can be updated
             valid_fields = [
-                'petparty_name', 'resparty_name', 'purpose_name', 
+                'petparty_name', 'resparty_name', 'purpose_name',
                 'type_name', 'court_no_desg_name', 'user_side'
             ]
-            
+
             if field_name not in valid_fields:
                 return False
-                
+
             cursor.execute(f"""
-                UPDATE cases 
-                SET {field_name} = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE cino = ?
+            UPDATE cases
+            SET {field_name} = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE cino = ?
             """, (field_value, cino))
             
             # Record the change
             cursor.execute("""
-                INSERT INTO case_history (cino, field_name, old_value, new_value)
-                VALUES (?, ?, '', ?)
+            INSERT INTO case_history (cino, field_name, old_value, new_value)
+            VALUES (?, ?, '', ?)
             """, (cino, f'{field_name}_updated', field_value))
             
             conn.commit()
             success = cursor.rowcount > 0
             conn.close()
-            
             return success
             
         except Exception as e:
             print(f"Error updating case field: {e}")
             return False
-    
+
     def get_notes_by_date(self, cino, hearing_date):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT new_value FROM case_history WHERE cino = ? AND field_name = 'notes_for_date' AND old_value = ?
-            ORDER BY id DESC
+        SELECT new_value FROM case_history WHERE cino = ? AND field_name = 'notes_for_date' AND old_value = ?
+        ORDER BY id DESC
         """, (cino, hearing_date))
         notes = [row[0] for row in cursor.fetchall()]
         conn.close()

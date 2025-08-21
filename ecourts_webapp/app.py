@@ -35,6 +35,7 @@ app.config['SECRET_KEY'] = get_or_create_secret_key()
 os.makedirs('data', exist_ok=True)
 db = CaseDatabase()
 
+
 @app.route('/')
 def index():
     """Main entry point - redirect based on data availability"""
@@ -54,6 +55,9 @@ def dashboard():
     try:
         print("🏠 Accessing dashboard...")
         cases = db.get_all_cases()
+        # Sort by next hearing date descending
+        cases.sort(key=lambda x: x.get('date_next_list', ''), reverse=True)  
+
         print(f"📊 Retrieved {len(cases)} total cases")
 
         if not cases or len(cases) == 0:
@@ -126,6 +130,7 @@ def dashboard():
         return render_template('error.html',
                              error_message=str(e),
                              error_details="Dashboard failed to load.")
+
 @app.route('/upload_page')
 def upload_page():
     """Upload page for myCases.txt files"""
@@ -1004,6 +1009,7 @@ def update_case_field(cino):
     except Exception as e:
         print(f"Update case field error: {e}")
         return jsonify({'success': False, 'error': f'Update failed: {str(e)}'}), 500
+
 
 
 # Add other necessary routes...

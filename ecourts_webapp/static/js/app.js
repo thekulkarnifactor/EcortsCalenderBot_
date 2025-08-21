@@ -1,10 +1,5 @@
 // Law Firm Case Management JavaScript - NO BROWSER ALERTS VERSION
-let pendingChanges = new Set();
-let selectedCases = new Set();
-let allCasesData = [];
-let currentFilters = { text: '', dateFrom: '', dateTo: '', advanced: {} };
-let currentTab = 'all-cases';
-let filterMemory = {};
+
 
 
 // Initialize everything when DOM is loaded
