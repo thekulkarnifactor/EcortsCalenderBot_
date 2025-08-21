@@ -639,3 +639,266 @@ class CaseDatabase:
     def clear_all_data(self) -> Dict[str, int]:
         """Clear all case data from the database"""
         return self.delete_all_cases_permanently()
+
+    def update_case_purpose(self, cino: str, purpose: str) -> bool:
+        """Update case purpose"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE cases 
+                SET purpose_name = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE cino = ?
+            """, (purpose, cino))
+            
+            # Record the change in history
+            cursor.execute("""
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'purpose_updated', '', ?)
+            """, (cino, purpose))
+            
+            conn.commit()
+            success = cursor.rowcount > 0
+            conn.close()
+            
+            if success:
+                print(f"✅ Updated purpose for case {cino}: {purpose}")
+            
+            return success
+        except Exception as e:
+            print(f"Error updating purpose: {e}")
+            return False
+
+    def get_changed_cases(self) -> List[Dict]:        
+        """Get cases that have changes (is_changed = TRUE)"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM cases 
+            WHERE is_changed = TRUE 
+            ORDER BY updated_at DESC
+        """)
+        cases = cursor.fetchall()
+        conn.close()
+        
+        return [self._row_to_dict(case) for case in cases]
+    
+    def update_case_hearing_date(self, cino: str, hearing_date: str) -> bool:
+        """Update case hearing date"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                UPDATE cases
+                SET date_next_list = ?, 
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE cino = ?
+            """, (hearing_date, cino))
+            
+            # Record the change in history
+            cursor.execute("""
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'hearing_date_updated', '', ?)
+            """, (cino, hearing_date))
+            
+            conn.commit()
+            success = cursor.rowcount > 0
+            conn.close()
+            
+            if success:
+                print(f"✅ Updated hearing date for case {cino}: {hearing_date}")
+            return success
+        except Exception as e:
+            print(f"Error updating hearing date: {e}")
+            return False
+        
+    def update_case_hearing_date_with_history(self, cino, new_hearing_date, notes):
+        """Update hearing date with proper fallback logic for last hearing date"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # Step 1: Get current next hearing date from database
+            cursor.execute("SELECT date_next_list, date_last_list FROM cases WHERE cino = ?", (cino,))
+            result = cursor.fetchone()
+            
+            prev_next_hearing = None
+            current_last_hearing = None
+            
+            if result:
+                prev_next_hearing = result[0]  # Current next hearing becomes last hearing
+                current_last_hearing = result[1]  # Current last hearing (for fallback)
+                print(f"📅 DB - Current Next: {prev_next_hearing}, Current Last: {current_last_hearing}")
+
+            # Step 2: Fallback to mycases.txt if no next hearing date in database
+            if not prev_next_hearing or prev_next_hearing in ['', 'Not set', 'Not scheduled']:
+                print("🔍 No next hearing in DB, checking mycases.txt...")
+                
+                try:
+                    # Check if mycases.txt exists
+                    mycases_path = 'data/myCases.txt'
+                    if os.path.exists(mycases_path):
+                        with open(mycases_path, 'r', encoding='utf-8') as f:
+                            content = f.read().strip()
+                            
+                        # Parse different formats
+                        if content:
+                            try:
+                                # Try JSON format first
+                                parsed = json.loads(content)
+                                cases_list = []
+                                
+                                if isinstance(parsed, list):
+                                    if all(isinstance(item, str) for item in parsed):
+                                        cases_list = [json.loads(item) for item in parsed]
+                                    elif all(isinstance(item, dict) for item in parsed):
+                                        cases_list = parsed
+                                elif isinstance(parsed, dict):
+                                    cases_list = [parsed]
+                                    
+                            except json.JSONDecodeError:
+                                # Try line-by-line format
+                                cases_list = []
+                                for line in content.splitlines():
+                                    if line.strip() and cino in line:
+                                        try:
+                                            case_data = json.loads(line.strip())
+                                            cases_list.append(case_data)
+                                        except json.JSONDecodeError:
+                                            continue
+                            
+                            # Find the case by CINO
+                            for case_data in cases_list:
+                                if case_data.get('cino') == cino:
+                                    mycases_next_date = case_data.get('date_next_list', '')
+                                    mycases_last_date = case_data.get('date_last_list', '')
+                                    
+                                    if mycases_next_date and mycases_next_date not in ['', 'Not set', 'Not scheduled']:
+                                        prev_next_hearing = mycases_next_date
+                                        print(f"📄 Found in mycases.txt - Next: {mycases_next_date}")
+                                    elif mycases_last_date and mycases_last_date not in ['', 'Not set']:
+                                        prev_next_hearing = mycases_last_date
+                                        print(f"📄 Using last date from mycases.txt: {mycases_last_date}")
+                                    break
+                            
+                except Exception as fallback_error:
+                    print(f"⚠️ Fallback to mycases.txt failed: {fallback_error}")
+
+            # Step 3: Final fallback to current last hearing date
+            if not prev_next_hearing and current_last_hearing:
+                prev_next_hearing = current_last_hearing
+                print(f"🔄 Using current last hearing as fallback: {current_last_hearing}")
+
+            # Step 4: Update the database
+            cursor.execute("""
+                UPDATE cases SET 
+                    date_next_list = ?, 
+                    date_last_list = ?, 
+                    user_notes = ?, 
+                    updated_at = CURRENT_TIMESTAMP 
+                WHERE cino = ?
+            """, (new_hearing_date, prev_next_hearing, notes, cino))
+
+            # Step 5: Save notes history for the previous date
+            if notes and prev_next_hearing:
+                cursor.execute("""
+                    INSERT INTO case_history (cino, field_name, old_value, new_value) 
+                    VALUES (?, 'notes_for_date', ?, ?)
+                """, (cino, prev_next_hearing, notes))
+                print(f"📝 Saved notes for date: {prev_next_hearing}")
+
+            # Step 6: Record the hearing date change
+            cursor.execute("""
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'hearing_date_updated', ?, ?)
+            """, (cino, prev_next_hearing or 'No previous date', new_hearing_date))
+
+            conn.commit()
+            conn.close()
+            
+            print(f"✅ Updated hearing date: {prev_next_hearing} → {new_hearing_date}")
+            return True
+
+        except Exception as e:
+            print(f"❌ Error updating hearing date with history: {e}")
+            return False
+
+
+    def get_case_notes_history(self, cino: str) -> List[Dict]:
+        """Get notes history for a case grouped by hearing dates"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT old_value as hearing_date, new_value as notes, changed_at
+                FROM case_history 
+                WHERE cino = ? AND field_name = 'notes_for_date'
+                ORDER BY changed_at DESC
+            """, (cino,))
+            
+            history = cursor.fetchall()
+            conn.close()
+            
+            return [
+                {
+                    'date': row[0],
+                    'notes': row[1],
+                    'timestamp': row[2]
+                }
+                for row in history
+            ]
+        except Exception as e:
+            print(f"Error getting notes history: {e}")
+            return []
+
+    def update_case_field(self, cino: str, field_name: str, field_value: str) -> bool:
+        """Update any case field"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Valid fields that can be updated
+            valid_fields = [
+                'petparty_name', 'resparty_name', 'purpose_name', 
+                'type_name', 'court_no_desg_name', 'user_side'
+            ]
+            
+            if field_name not in valid_fields:
+                return False
+                
+            cursor.execute(f"""
+                UPDATE cases 
+                SET {field_name} = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE cino = ?
+            """, (field_value, cino))
+            
+            # Record the change
+            cursor.execute("""
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, ?, '', ?)
+            """, (cino, f'{field_name}_updated', field_value))
+            
+            conn.commit()
+            success = cursor.rowcount > 0
+            conn.close()
+            
+            return success
+            
+        except Exception as e:
+            print(f"Error updating case field: {e}")
+            return False
+    
+    def get_notes_by_date(self, cino, hearing_date):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT new_value FROM case_history WHERE cino = ? AND field_name = 'notes_for_date' AND old_value = ?
+            ORDER BY id DESC
+        """, (cino, hearing_date))
+        notes = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return notes

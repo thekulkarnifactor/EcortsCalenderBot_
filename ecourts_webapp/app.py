@@ -50,54 +50,36 @@ def index():
 
 @app.route('/dashboard')
 def dashboard():
-    """Law Firm Case Management Dashboard - FIXED"""
+    """Law Firm Case Management Dashboard - Updated"""
     try:
         print("🏠 Accessing dashboard...")
-        
-        # Get all cases first
         cases = db.get_all_cases()
         print(f"📊 Retrieved {len(cases)} total cases")
-        
+
         if not cases or len(cases) == 0:
             print("⚠️ No cases found, redirecting to upload page")
             return redirect(url_for('upload_page'))
-            
-        # FIXED: Get different case categories with proper filtering
+
+        # Get different case categories
         try:
-            petitioner_cases = db.get_petitioner_cases()
-            print(f"👔 Petitioner cases: {len(petitioner_cases)}")
+            changed_cases = db.get_changed_cases()  # New method
+            print(f"⚠️ Changed cases: {len(changed_cases)}")
         except Exception as e:
-            print(f"⚠️ Error getting petitioner cases: {e}")
-            petitioner_cases = []
-            
+            print(f"⚠️ Error getting changed cases: {e}")
+            changed_cases = [case for case in cases if case.get('is_changed', False)]
+
         try:
-            respondent_cases = db.get_respondent_cases()
-            print(f"🛡️ Respondent cases: {len(respondent_cases)}")
-        except Exception as e:
-            print(f"⚠️ Error getting respondent cases: {e}")
-            respondent_cases = []
-            
-        try:
-            # FIXED: Only get cases that are actually reviewed (is_changed = FALSE)
             reviewed_cases = db.get_reviewed_cases_with_notes()
-            print(f"✅ Reviewed cases (is_changed=FALSE): {len(reviewed_cases)}")
+            print(f"✅ Reviewed cases: {len(reviewed_cases)}")
         except Exception as e:
             print(f"⚠️ Error getting reviewed cases: {e}")
             reviewed_cases = []
-            
-        try:
-            unassigned_cases = db.get_unassigned_cases()
-            print(f"❓ Unassigned cases: {len(unassigned_cases)}")
-        except Exception as e:
-            print(f"⚠️ Error getting unassigned cases: {e}")
-            unassigned_cases = []
-        
-        # Get upcoming cases (cases with future hearing dates)
+
+        # Get upcoming cases
         upcoming_cases = []
         try:
             from datetime import datetime
             today = datetime.now().date()
-            
             for case in cases:
                 if case.get('date_next_list'):
                     try:
@@ -106,60 +88,44 @@ def dashboard():
                             upcoming_cases.append(case)
                     except ValueError:
                         continue
-            
-            # Sort upcoming cases by date
             upcoming_cases.sort(key=lambda x: x.get('date_next_list', ''))
             print(f"📅 Upcoming cases: {len(upcoming_cases)}")
         except Exception as e:
             print(f"⚠️ Error processing upcoming cases: {e}")
             upcoming_cases = []
-        
-        # Get today's date for default filtering
-        today_str = datetime.now().strftime('%Y-%m-%d')
-        
-        # Get counts for law firm dashboard
+
+        # Get counts
         try:
             counts = db.get_case_counts()
             print(f"📊 Counts retrieved: {counts}")
         except Exception as e:
             print(f"⚠️ Error getting counts: {e}")
-            # Provide default counts
             counts = {
                 'total_cases': len(cases),
-                'changed_cases': len([c for c in cases if c.get('is_changed', False)]),
+                'changed_cases': len(changed_cases),
                 'reviewed_cases': len(reviewed_cases),
-                'petitioner_cases': len(petitioner_cases),
-                'respondent_cases': len(respondent_cases),
-                'cases_without_user_side': len(unassigned_cases),
                 'upcoming_hearings': len(upcoming_cases)
             }
-        
+
         print("🎯 Rendering dashboard template...")
-        
         return render_template('index.html',
                              cases=cases,
-                             petitioner_cases=petitioner_cases,
-                             respondent_cases=respondent_cases,
+                             changed_cases=changed_cases,
                              reviewed_cases=reviewed_cases,
-                             unassigned_cases=unassigned_cases,
                              upcoming_cases=upcoming_cases,
                              total_cases=counts['total_cases'],
                              changed_cases_count=counts['changed_cases'],
                              reviewed_cases_count=counts['reviewed_cases'],
-                             petitioner_cases_count=counts['petitioner_cases'],
-                             respondent_cases_count=counts['respondent_cases'],
                              upcoming_hearings_count=counts['upcoming_hearings'],
-                             cases_without_user_side=counts['cases_without_user_side'],
-                             current_date=datetime.now().strftime('%B %d, %Y'),
-                             default_filter_date=today_str)
+                             current_date=datetime.now().strftime('%B %d, %Y'))
 
     except Exception as e:
         print(f"💥 Dashboard error: {e}")
         import traceback
         traceback.print_exc()
-        return render_template('error.html', 
+        return render_template('error.html',
                              error_message=str(e),
-                             error_details="Dashboard failed to load. Please check your data and try again.")
+                             error_details="Dashboard failed to load.")
 @app.route('/upload_page')
 def upload_page():
     """Upload page for myCases.txt files"""
@@ -211,6 +177,10 @@ def case_detail(cino):
             return render_template('error.html',
                                  message="Case not found",
                                  error_code=404), 404
+        
+        # Get notes history
+        case['notes_history'] = db.get_case_notes_history(cino)
+        
         return render_template('case_detail.html', case=case)
     except Exception as e:
         print(f"Case detail error: {e}")
@@ -945,12 +915,95 @@ def fix_data_state():
     except Exception as e:
         return jsonify({'error': f'Fix failed: {str(e)}'}), 500
 
+@app.route('/case/<cino>/update_purpose', methods=['POST'])
+def update_case_purpose(cino):
+    """Update case purpose"""
+    try:
+        data = request.json
+        purpose = data.get('purpose', '')
+        
+        if not purpose.strip():
+            return jsonify({'error': 'Purpose cannot be empty'}), 400
+        
+        success = db.update_case_purpose(cino, purpose.strip())
+        
+        if success:
+            return jsonify({
+                'message': 'Purpose updated successfully',
+                'purpose': purpose.strip()
+            })
+        else:
+            return jsonify({'error': 'Failed to update purpose'}), 500
+            
+    except Exception as e:
+        print(f"Update purpose error: {e}")
+        return jsonify({'error': f'Update failed: {str(e)}'}), 500
 
+@app.route('/api/cases/changed')
+def changed_cases_api():
+    """Get changed cases"""
+    try:
+        changed = db.get_changed_cases()
+        return jsonify(changed)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
+@app.route('/case/<cino>/update_hearing_date_with_history', methods=['POST'])
+def update_hearing_date_with_history(cino):
+    """Update hearing date with history tracking"""
+    try:
+        data = request.json
+        new_hearing_date = data.get('new_hearing_date')
+        notes = data.get('notes', '')
+        
+        if not new_hearing_date:
+            return jsonify({'success': False, 'error': 'No hearing date provided'}), 400
+        
+        # Validate date format
+        try:
+            from datetime import datetime
+            datetime.strptime(new_hearing_date, '%Y-%m-%d')
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        
+        success = db.update_case_hearing_date_with_history(cino, new_hearing_date, notes)
+        
+        if success:
+            return jsonify({
+                'success': True, 
+                'message': 'Hearing date updated successfully with history'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to update hearing date'}), 500
+            
+    except Exception as e:
+        print(f"Update hearing date with history error: {e}")
+        return jsonify({'success': False, 'error': f'Update failed: {str(e)}'}), 500
 
-
-
-
+@app.route('/case/<cino>/update_field', methods=['POST'])
+def update_case_field(cino):
+    """Update any case field"""
+    try:
+        data = request.json
+        field_name = data.get('field_name')
+        field_value = data.get('field_value')
+        
+        if not field_name:
+            return jsonify({'success': False, 'error': 'No field name provided'}), 400
+        
+        success = db.update_case_field(cino, field_name, field_value)
+        
+        if success:
+            return jsonify({
+                'success': True, 
+                'message': f'{field_name} updated successfully'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to update field'}), 500
+            
+    except Exception as e:
+        print(f"Update case field error: {e}")
+        return jsonify({'success': False, 'error': f'Update failed: {str(e)}'}), 500
 
 
 # Add other necessary routes...

@@ -6,70 +6,44 @@ let currentFilters = { text: '', dateFrom: '', dateTo: '', advanced: {} };
 let currentTab = 'all-cases';
 let filterMemory = {};
 
+
 // Initialize everything when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, initializing Law Firm Case Management...');
-    
     initializeSearch();
     setupNotesChangeHandlers();
-    
+    initializeSelectAllButtons();
     console.log('App initialized successfully');
 });
+
+// Initialize select all button event listeners
+function initializeSelectAllButtons() {
+    document.querySelectorAll('[data-toggle-select]').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation(); // Prevent tab switching
+            const tabId = this.dataset.toggleSelect;
+            toggleAllSelection(tabId);
+        });
+    });
+}
 
 // Tab switching with filter memory
 function switchTab(tabId) {
     console.log('Switching to tab:', tabId);
     
-    if (currentTab) {
-        filterMemory[currentTab] = {
-            text: document.getElementById('searchInput')?.value || '',
-            dateFrom: document.getElementById('dateFromInput')?.value || '',
-            dateTo: document.getElementById('dateToInput')?.value || '',
-            activeFilter: getActiveFilterButton()
-        };
-    }
-    
     currentTab = tabId;
     selectedCases.clear();
+    hideBulkMenu();
+    
+    // Reset ALL toggle buttons to initial state
+    document.querySelectorAll('[data-toggle-select] span').forEach(span => {
+        span.textContent = 'Select All';
+        span.parentElement.classList.remove('btn-primary');
+        span.parentElement.classList.add('btn-outline-primary');
+    });
+
     updateBulkActions();
-    
-    if (filterMemory[tabId]) {
-        const savedFilters = filterMemory[tabId];
-        
-        const searchInput = document.getElementById('searchInput');
-        const dateFromInput = document.getElementById('dateFromInput');
-        const dateToInput = document.getElementById('dateToInput');
-        
-        if (searchInput) searchInput.value = savedFilters.text;
-        if (dateFromInput) dateFromInput.value = savedFilters.dateFrom;
-        if (dateToInput) dateToInput.value = savedFilters.dateTo;
-        
-        document.querySelectorAll('#dateFilterGroup .btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
-        if (savedFilters.activeFilter) {
-            const activeBtn = document.querySelector(`[onclick="setDateFilter('${savedFilters.activeFilter}')"]`);
-            if (activeBtn) {
-                activeBtn.classList.add('active');
-            }
-        }
-        
-        currentFilters = {
-            text: savedFilters.text,
-            dateFrom: savedFilters.dateFrom,
-            dateTo: savedFilters.dateTo,
-            advanced: {}
-        };
-        
-        setTimeout(() => {
-            filterCases();
-        }, 100);
-    } else {
-        clearAllFilters();
-    }
-    
-    updateToggleButtonText(tabId);
 }
 
 function getActiveFilterButton() {
@@ -102,7 +76,6 @@ function updateToggleButtonText(tabId) {
 
 function initializeSearch() {
     console.log('Search initialized');
-    
     allCasesData = Array.from(document.querySelectorAll('.case-card')).map(card => {
         const container = card.closest('.col-xl-4, .col-lg-6');
         return {
@@ -117,7 +90,6 @@ function initializeSearch() {
             hasNotes: card.querySelector('.notes-input')?.value.trim() !== ''
         };
     });
-    
     console.log(`Search initialized with ${allCasesData.length} cases`);
 }
 
@@ -130,6 +102,7 @@ function extractDateFromCard(card) {
         return '';
     }
 }
+
 
 function setDateFilter(period) {
     console.log('Setting date filter:', period);
@@ -149,45 +122,56 @@ function setDateFilter(period) {
         case 'today':
             fromDate = toDate = today.toISOString().split('T')[0];
             break;
+            
         case 'thisWeek':
             const startOfWeek = new Date(today);
             startOfWeek.setDate(today.getDate() - today.getDay());
             const endOfWeek = new Date(startOfWeek);
             endOfWeek.setDate(startOfWeek.getDate() + 6);
             fromDate = startOfWeek.toISOString().split('T')[0];
-            toDate = endOfWeek.toISOString().split('T')[0];
+            toDate = endOfWeek.toISOString().split('T');
             break;
         case 'thisMonth':
-            fromDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-            toDate = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+            fromDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T');
+            toDate = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T');
             break;
         case 'nextWeek':
             const nextWeekStart = new Date(today);
             nextWeekStart.setDate(today.getDate() + (7 - today.getDay()));
             const nextWeekEnd = new Date(nextWeekStart);
             nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
-            fromDate = nextWeekStart.toISOString().split('T')[0];
-            toDate = nextWeekEnd.toISOString().split('T')[0];
+            fromDate = nextWeekStart.toISOString().split('T');
+            toDate = nextWeekEnd.toISOString().split('T');
             break;
+            
+        default:
+            console.error('Unknown period:', period);
+            return;
     }
 
+    // Update input fields
     dateFromInput.value = fromDate;
     dateToInput.value = toDate;
 
+    // Update current filters
+    currentFilters.dateFrom = fromDate;
+    currentFilters.dateTo = toDate;
+
+    // Update active button state
     document.querySelectorAll('#dateFilterGroup .btn').forEach(btn => {
         btn.classList.remove('active');
     });
     
-    if (event && event.target) {
-        event.target.classList.add('active');
-    } else {
-        const targetBtn = document.querySelector(`[onclick="setDateFilter('${period}')"]`);
-        if (targetBtn) {
-            targetBtn.classList.add('active');
-        }
+    // Find and activate the correct button
+    const targetBtn = document.querySelector(`[onclick="setDateFilter('${period}')"]`);
+    if (targetBtn) {
+        targetBtn.classList.add('active');
     }
 
-    handleSearch();
+    console.log(`Date filter set: ${fromDate} to ${toDate}`);
+    
+    // Apply the filter
+    filterCases();
 }
 
 function clearDateFilter() {
@@ -206,62 +190,90 @@ function clearDateFilter() {
 
 function clearAllFilters() {
     const searchInput = document.getElementById('searchInput');
-    const dateFromInput = document.getElementById('dateFromInput');
-    const dateToInput = document.getElementById('dateToInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', handleSearch);
+        searchInput.addEventListener('keyup', handleSearch);
+    }
     
+    const dateFromInput = document.getElementById('dateFromInput');
+    if (dateFromInput) {
+        dateFromInput.addEventListener('change', handleSearch);
+        dateFromInput.addEventListener('input', handleSearch);
+    }
+    
+    const dateToInput = document.getElementById('dateToInput');
+    if (dateToInput) {
+        dateToInput.addEventListener('change', handleSearch);
+        dateToInput.addEventListener('input', handleSearch);
+    }
+
     if (searchInput) searchInput.value = '';
     if (dateFromInput) dateFromInput.value = '';
     if (dateToInput) dateToInput.value = '';
-    
+
+    // Clear filter object
     currentFilters = { text: '', dateFrom: '', dateTo: '', advanced: {} };
-    
+
+    // Remove active states
     document.querySelectorAll('#dateFilterGroup .btn.active').forEach(btn => {
         btn.classList.remove('active');
     });
-    
-    handleSearch();
+
+    // Apply cleared filters
+    filterCases();
 }
 
+// FIXED: Handle search function
 function handleSearch() {
     console.log('Handling search...');
+    
+    // Get current values from inputs
     const searchText = document.getElementById('searchInput')?.value || '';
     const dateFrom = document.getElementById('dateFromInput')?.value || '';
     const dateTo = document.getElementById('dateToInput')?.value || '';
 
+    // Update current filters
     currentFilters = {
-        text: searchText,
+        text: searchText.trim(),
         dateFrom: dateFrom,
         dateTo: dateTo,
         advanced: currentFilters.advanced || {}
     };
 
+    console.log('Current filters:', currentFilters);
+    
+    // Apply filters
     filterCases();
 }
 
 function filterCases() {
     let visibleCount = 0;
-    
     const activeTabPane = document.querySelector('.tab-pane.active');
     if (!activeTabPane) return;
-    
+
     const casesToFilter = activeTabPane.querySelectorAll('.case-card');
-    
+
     casesToFilter.forEach(card => {
         const container = card.closest('.col-xl-4, .col-lg-6');
         if (!container) return;
-        
+
         let matches = true;
+
+        // FIXED: Use data attributes for reliable data access
         const caseData = {
-            caseNo: card.querySelector('.card-title')?.textContent || '',
-            petitioner: card.querySelector('.case-parties .col-6:first-child .fw-medium')?.textContent || '',
-            respondent: card.querySelector('.case-parties .col-6:last-child .fw-medium')?.textContent || '',
-            establishment: card.querySelector('.case-details')?.textContent || '',
-            nextDate: extractDateFromCard(card) || ''
+            cino: card.dataset.cino || '',
+            caseNo: card.dataset.caseNo || '',
+            petitioner: card.dataset.petitioner || '',
+            respondent: card.dataset.respondent || '',
+            establishment: card.dataset.establishment || '',
+            nextDate: card.dataset.nextDate || ''
         };
 
+        // Text search filtering
         if (currentFilters.text) {
             const searchTerm = currentFilters.text.toLowerCase();
             matches = matches && (
+                caseData.cino.toLowerCase().includes(searchTerm) ||
                 caseData.caseNo.toLowerCase().includes(searchTerm) ||
                 caseData.petitioner.toLowerCase().includes(searchTerm) ||
                 caseData.respondent.toLowerCase().includes(searchTerm) ||
@@ -269,23 +281,50 @@ function filterCases() {
             );
         }
 
+        // FIXED: Date filtering with proper comparison
         if ((currentFilters.dateFrom || currentFilters.dateTo) && caseData.nextDate) {
-            const caseDate = new Date(caseData.nextDate);
-            if (currentFilters.dateFrom) {
-                const fromDate = new Date(currentFilters.dateFrom);
-                if (caseDate < fromDate) matches = false;
+            try {
+                const caseDate = new Date(caseData.nextDate);
+                
+                // Check if the case date is valid
+                if (!isNaN(caseDate.getTime())) {
+                    if (currentFilters.dateFrom) {
+                        const fromDate = new Date(currentFilters.dateFrom);
+                        if (caseDate < fromDate) {
+                            matches = false;
+                        }
+                    }
+                    
+                    if (currentFilters.dateTo) {
+                        const toDate = new Date(currentFilters.dateTo);
+                        // Include the entire end date
+                        toDate.setHours(23, 59, 59, 999);
+                        if (caseDate > toDate) {
+                            matches = false;
+                        }
+                    }
+                } else {
+                    // If date is invalid, exclude from date-filtered results
+                    if (currentFilters.dateFrom || currentFilters.dateTo) {
+                        matches = false;
+                    }
+                }
+            } catch (e) {
+                console.error('Date parsing error:', e);
+                matches = false;
             }
-            if (currentFilters.dateTo) {
-                const toDate = new Date(currentFilters.dateTo);
-                if (caseDate > toDate) matches = false;
-            }
+        } else if (currentFilters.dateFrom || currentFilters.dateTo) {
+            // If filtering by date but case has no date, exclude it
+            matches = false;
         }
 
+        // Apply visibility
         container.style.display = matches ? 'block' : 'none';
         if (matches) visibleCount++;
     });
 
     updateSearchResultsCount(visibleCount);
+    updateToggleButtonState();
 }
 
 function updateSearchResultsCount(count) {
@@ -383,52 +422,136 @@ function removeFromReviewed(cino) {
 }
 
 function toggleAllSelection(tabId) {
-    const container = getContainerByTabId(tabId);
-    const checkboxes = container.querySelectorAll('.case-selection');
-    const toggleBtn = event?.target?.closest('button');
-    const toggleText = toggleBtn?.querySelector('span');
+    console.log('Toggling selection for tab:', tabId);
     
-    if (!toggleText) {
-        console.error('Toggle button or text not found');
-        return;
-    }
-    
-    const isSelectAll = toggleText.textContent.trim() === 'Select All';
-    
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = isSelectAll;
-        if (isSelectAll) {
-            selectedCases.add(checkbox.dataset.cino);
-        } else {
-            selectedCases.delete(checkbox.dataset.cino);
-        }
+    const activeTabPane = document.querySelector('.tab-pane.active');
+    if (!activeTabPane) return;
+
+    // Get only visible checkboxes (not filtered out)
+    const visibleCheckboxes = Array.from(activeTabPane.querySelectorAll('.case-selection')).filter(checkbox => {
+        const container = checkbox.closest('.col-xl-4, .col-lg-6');
+        return container && container.style.display !== 'none';
     });
+
+    if (visibleCheckboxes.length === 0) return;
+
+    // Check if all visible checkboxes are selected
+    const allSelected = visibleCheckboxes.every(checkbox => checkbox.checked);
+
+    // Get the SINGLE toggle button for this tab
+    const toggleButton = document.querySelector(`[data-toggle-select="${tabId}"] span`);
     
-    toggleText.textContent = isSelectAll ? 'Deselect All' : 'Select All';
+    if (allSelected) {
+        // Deselect all
+        visibleCheckboxes.forEach(checkbox => {
+            checkbox.checked = false;
+            selectedCases.delete(checkbox.dataset.cino);
+        });
+        
+        if (toggleButton) {
+            toggleButton.textContent = 'Select All';
+            toggleButton.parentElement.classList.remove('btn-primary');
+            toggleButton.parentElement.classList.add('btn-outline-primary');
+        }
+        
+        hideBulkMenu();
+        
+    } else {
+        // Select all
+        visibleCheckboxes.forEach(checkbox => {
+            checkbox.checked = true;
+            selectedCases.add(checkbox.dataset.cino);
+        });
+        
+        if (toggleButton) {
+            toggleButton.textContent = 'Deselect All';
+            toggleButton.parentElement.classList.remove('btn-outline-primary');
+            toggleButton.parentElement.classList.add('btn-primary');
+        }
+        
+        showBulkMenu();
+    }
+
     updateBulkActions();
+    console.log(`${allSelected ? 'Deselected' : 'Selected'} ${visibleCheckboxes.length} cases`);
 }
 
-function getContainerByTabId(tabId) {
-    switch(tabId) {
-        case 'all-cases': return document.getElementById('allCasesContainer');
-        case 'petitioner-cases': return document.getElementById('petitionerCasesContainer');
-        case 'respondent-cases': return document.getElementById('respondentCasesContainer');
-        case 'unassigned-cases': return document.getElementById('unassignedCasesContainer');
-        case 'upcoming-cases': return document.getElementById('upcomingCasesContainer');
-        case 'reviewed-cases': return document.getElementById('reviewedCasesContainer');
-        default: return document.getElementById('allCasesContainer');
+function showBulkMenu() {
+    const bulkContainer = document.getElementById('bulkActionsContainer');
+    if (bulkContainer) {
+        bulkContainer.style.display = 'block';
+        bulkContainer.classList.add('show');
     }
 }
+
+// Hide bulk actions menu  
+function hideBulkMenu() {
+    const bulkContainer = document.getElementById('bulkActionsContainer');
+    if (bulkContainer) {
+        bulkContainer.style.display = 'none';
+        bulkContainer.classList.remove('show');
+    }
+}
+
+// Also update the getContainerByTabId function to include changed-cases
+function getContainerByTabId(tabId) {
+    switch(tabId) {
+        case 'all-cases':
+            return document.getElementById('allCasesContainer');
+        case 'changed-cases':
+            return document.getElementById('changedCasesContainer');
+        case 'reviewed-cases':
+            return document.getElementById('reviewedCasesContainer');
+        case 'upcoming-cases':
+            return document.getElementById('upcomingCasesContainer');
+        default:
+            return document.getElementById('allCasesContainer');
+    }
+}
+
 
 function updateCaseSelection() {
     selectedCases.clear();
     const checkedBoxes = document.querySelectorAll('.case-selection:checked');
+    
     checkedBoxes.forEach(checkbox => {
         selectedCases.add(checkbox.dataset.cino);
     });
-    
+
     updateBulkActions();
+    updateToggleButtonState();
 }
+
+function updateToggleButtonState() {
+    const activeTabPane = document.querySelector('.tab-pane.active');
+    if (!activeTabPane) return;
+
+    const tabId = activeTabPane.id;
+    const toggleButton = document.querySelector(`[data-toggle-select="${tabId}"] span`);
+    
+    if (toggleButton) {
+        const visibleCheckboxes = Array.from(activeTabPane.querySelectorAll('.case-selection')).filter(checkbox => {
+            const container = checkbox.closest('.col-xl-4, .col-lg-6');
+            return container && container.style.display !== 'none';
+        });
+
+        const checkedCount = visibleCheckboxes.filter(cb => cb.checked).length;
+        const allSelected = visibleCheckboxes.length > 0 && checkedCount === visibleCheckboxes.length;
+        
+        toggleButton.textContent = allSelected ? 'Deselect All' : 'Select All';
+        
+        // Update button styling
+        const buttonElement = toggleButton.parentElement;
+        if (allSelected) {
+            buttonElement.classList.remove('btn-outline-primary');
+            buttonElement.classList.add('btn-primary');
+        } else {
+            buttonElement.classList.remove('btn-primary');
+            buttonElement.classList.add('btn-outline-primary');
+        }
+    }
+}
+
 
 function updateBulkActions() {
     const count = selectedCases.size;
@@ -437,15 +560,19 @@ function updateBulkActions() {
     const markBtn = document.getElementById('bulkMarkReviewedBtn');
     const removeBtn = document.getElementById('bulkRemoveReviewedBtn');
     const calendarBtn = document.getElementById('bulkCalendarBtn');
-    
+
     if (count > 0) {
-        container.style.display = 'block';
-        text.textContent = `${count} case${count > 1 ? 's' : ''} selected`;
+        showBulkMenu();
+        if (text) text.textContent = `${count} case${count > 1 ? 's' : ''} selected`;
         if (markBtn) markBtn.disabled = false;
         if (removeBtn) removeBtn.disabled = false;
         if (calendarBtn) calendarBtn.disabled = false;
     } else {
-        container.style.display = 'none';
+        hideBulkMenu();
+        if (text) text.textContent = '0 cases selected';
+        if (markBtn) markBtn.disabled = true;
+        if (removeBtn) removeBtn.disabled = true;
+        if (calendarBtn) calendarBtn.disabled = true;
     }
 }
 
@@ -810,43 +937,18 @@ function removeSelectedFromReviewed() {
 
 // Utility functions
 function extractCaseDataFromCard(card) {
-    try {
-        const cino = card.dataset.cino;
-        const title = card.querySelector('.card-title')?.textContent || '';
-        const caseDetails = card.querySelector('.case-details')?.textContent || '';
-        const parties = card.querySelector('.case-parties');
-        const notesInput = card.querySelector('.notes-input');
-        
-        let petparty_name = '';
-        let resparty_name = '';
-        
-        if (parties) {
-            const partyElements = parties.querySelectorAll('.fw-medium');
-            if (partyElements.length >= 2) {
-                petparty_name = partyElements[0].textContent.trim();
-                resparty_name = partyElements[1].textContent.trim();
-            }
-        }
-        
-        const hearingMatch = caseDetails.match(/Next Hearing:\s*(\d{4}-\d{2}-\d{2})/i);
-        const dateNextList = hearingMatch ? hearingMatch[1] : '';
-        
-        return {
-            cino: cino,
-            case_no: title,
-            petparty_name: petparty_name,
-            resparty_name: resparty_name,
-            establishment_name: extractFromDetails(caseDetails, 'Establishment') || '',
-            date_next_list: dateNextList,
-            purpose_name: extractFromDetails(caseDetails, 'Purpose') || '',
-            court_no_desg_name: extractFromDetails(caseDetails, 'Court') || '',
-            user_notes: notesInput ? notesInput.value : ''
-        };
-        
-    } catch (error) {
-        console.error('Error extracting case data:', error);
-        return null;
-    }
+    return {
+        cino: card.dataset.cino || '',
+        case_no: card.dataset.caseNo || '',
+        petparty_name: card.dataset.petitioner || '',
+        resparty_name: card.dataset.respondent || '',
+        establishment_name: card.dataset.establishment || '',
+        court_no_desg_name: card.dataset.court || '',
+        date_next_list: card.dataset.nextDate || '',
+        type_name: card.dataset.type || '',
+        user_side: card.dataset.userSide || '',
+        user_notes: card.dataset.notes || ''
+    };
 }
 
 function extractFromDetails(text, field) {
@@ -936,24 +1038,24 @@ function showAlert(message, type = 'info') {
 // UPDATED: Delete all functionality - No browser alerts
 function showDeleteAllModal() {
     const modal = new bootstrap.Modal(document.getElementById('deleteAllModal'));
+    document.getElementById('confirmationText').value = '';
+    document.getElementById('confirmDeleteDataCheck').checked = false;
+    document.getElementById('confirmDeleteAllBtn').disabled = true;
     modal.show();
 }
 
 function validateDeletionForm() {
     const confirmationText = document.getElementById('confirmationText')?.value;
-    const checkboxes = document.querySelectorAll('#deleteAllModal .form-check-input');
-    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-    
-    const isValid = confirmationText === 'DELETE_ALL_FOREVER' && allChecked;
-    
+    const isChecked = document.getElementById('confirmDeleteDataCheck')?.checked;
     const btn = document.getElementById('confirmDeleteAllBtn');
-    if (btn) btn.disabled = !isValid;
+    
+    if (btn) {
+        btn.disabled = !(confirmationText === 'DELETE_ALL_FOREVER' && isChecked);
+    }
 }
 
-// UPDATED: Execute delete all - No browser alerts
 function executeDeleteAll() {
-    // REPLACED: Browser confirm with custom confirm
-    showConfirm('This is your FINAL WARNING!\n\nAre you absolutely sure?', 'danger', 'Final Confirmation')
+    showConfirm('This action will delete all cases and calendar events permanently. Proceed?', 'danger')
     .then(confirmed => {
         if (!confirmed) return;
         
@@ -961,39 +1063,64 @@ function executeDeleteAll() {
         
         fetch('/delete_all_cases_and_calendar', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                confirmation: 'DELETE_ALL_FOREVER'
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ confirmation: 'DELETE_ALL_FOREVER' })
         })
         .then(response => response.json())
         .then(data => {
-            if (loadingAlert && window.alertSystem) {
-                window.alertSystem.removeAlert(loadingAlert);
-            }
+            if (window.alertSystem && loadingAlert) window.alertSystem.removeAlert(loadingAlert);
+            if (data.error) throw new Error(data.error);
             
-            if (data.error) {
-                throw new Error(data.error);
-            }
-            
-            // REPLACED: Browser alert with custom alert
             showAlert('All cases and calendar events deleted successfully!', 'success');
-            
             const modal = bootstrap.Modal.getInstance(document.getElementById('deleteAllModal'));
             if (modal) modal.hide();
             
-            setTimeout(() => {
-                window.location.href = '/upload_page';
-            }, 3000);
+            setTimeout(() => { window.location.href = '/upload_page'; }, 3000);
         })
         .catch(error => {
-            if (loadingAlert && window.alertSystem) {
-                window.alertSystem.removeAlert(loadingAlert);
-            }
-            // REPLACED: Browser alert with custom alert
+            if (window.alertSystem && loadingAlert) window.alertSystem.removeAlert(loadingAlert);
             showAlert('Deletion failed: ' + error.message, 'danger');
         });
     });
+}
+
+function handleGlobalSelectAll() {
+    const activeTabPane = document.querySelector('.tab-pane.active');
+    if (!activeTabPane) return;
+
+    const visibleCheckboxes = Array.from(activeTabPane.querySelectorAll('.case-selection')).filter(checkbox => {
+        const container = checkbox.closest('.col-xl-4, .col-lg-6');
+        return container && container.style.display !== 'none';
+    });
+
+    const allSelected = visibleCheckboxes.length > 0 && visibleCheckboxes.every(cb => cb.checked);
+
+    if (allSelected) {
+        // Deselect all
+        visibleCheckboxes.forEach(cb => {
+            cb.checked = false;
+            selectedCases.delete(cb.dataset.cino);
+        });
+        document.getElementById('globalSelectAllText').textContent = 'Select All';
+    } else {
+        // Select all
+        visibleCheckboxes.forEach(cb => {
+            cb.checked = true;
+            selectedCases.add(cb.dataset.cino);
+        });
+        document.getElementById('globalSelectAllText').textContent = 'Deselect All';
+    }
+
+    updateBulkActions();
+}
+
+function updateGlobalSelectAllText() {
+    const activeTabPane = document.querySelector('.tab-pane.active');
+    if (!activeTabPane) return;
+    const visibleCheckboxes = Array.from(activeTabPane.querySelectorAll('.case-selection')).filter(checkbox => {
+        const container = checkbox.closest('.col-xl-4, .col-lg-6');
+        return container && container.style.display !== 'none';
+    });
+    const allSelected = visibleCheckboxes.length > 0 && visibleCheckboxes.every(cb => cb.checked);
+    document.getElementById('globalSelectAllText').textContent = allSelected ? 'Deselect All' : 'Select All';
 }

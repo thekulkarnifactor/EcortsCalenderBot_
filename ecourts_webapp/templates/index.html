@@ -1,308 +1,820 @@
 {% extends "base.html" %} {% block title %}Date Joshi and Associates Case Management Dashboard{% endblock %} {% block content %}
 
-<!-- Header -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center">
-            <div class="logo">
-                <a href="https://datejoshiandassociates.com/" target="_blank" rel="noopener noreferrer" class="logo-link">
-                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Date Joshi & Associates Logo" class="logo-image" />
-                    <span class="logo-text">
-                        <i class="fas fa-gavel me-2"></i>Date Joshi & Associates Case Management Dashboard
-                    </span>
-                </a>
-            </div>
-            <div class="d-flex gap-2">
-                <a href="/upload_page" class="btn btn-info">
-                    <i class="fas fa-upload me-2"></i>Upload Cases
-                </a>
-                <a href="/add_case" class="btn btn-success">
-                    <i class="fas fa-plus me-2"></i>Add New Case
-                </a>
-                <button type="button" class="btn btn-primary" onclick="createCalendarEvents()">
-                    <i class="fas fa-calendar-plus me-2"></i>Create Calendar Events
-                </button>
-                <!-- Danger Zone -->
-                <div class="dropdown">
-                    <button class="btn btn-outline-danger dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-trash-alt me-2"></i>Danger Zone
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li>
-                            <button class="dropdown-item text-danger" onclick="showDeleteAllModal()">
-                                <i class="fas fa-exclamation-triangle me-2"></i>Delete All Cases & Calendar
-                            </button>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+<div class="container-fluid">
+    <!-- Alerts placeholder -->
+    <div id="creativeAlertContainer"></div>
 
+    <!-- Page header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-balance-scale"></i> Date Joshi and Associates</h2>
+        <div class="d-flex gap-2">
+            <input type="file" id="fileInput" accept=".txt" style="display:none;">
+            <label for="fileInput" class="btn btn-primary">
+                <i class="fas fa-upload me-2"></i>Upload myCases.txt
+            </label>
+            <a href="/add_case" class="btn btn-success">
+                <i class="fas fa-plus me-2"></i>Add New Case
+            </a>
+            <button type="button" class="btn btn-primary" onclick="showCalendarActionModal()">
+                <i class="fas fa-calendar-plus me-2"></i>Calendar Actions
+            </button>
+            <button type="button" class="btn btn-danger" onclick="showDeleteAllModal()">
+                <i class="fas fa-trash-alt me-2"></i>Delete ALL Cases
+            </button>
+        </div>
+    </div>
 
-<!-- Statistics Cards -->
-<div class="row mb-4">
-    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-        <div class="card stats-card bg-primary text-white h-100">
-            <div class="card-body text-center">
-                <h4 class="mb-1">{{ total_cases }}</h4>
-                <p class="mb-0 small">Total Cases</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-        <div class="card stats-card bg-success text-white h-100">
-            <div class="card-body text-center">
-                <h4 class="mb-1">{{ reviewed_cases_count }}</h4>
-                <p class="mb-0 small">Reviewed</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-        <div class="card stats-card bg-info text-white h-100">
-            <div class="card-body text-center">
-                <h4 class="mb-1">{{ petitioner_cases_count }}</h4>
-                <p class="mb-0 small">Petitioner</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-        <div class="card stats-card bg-warning text-white h-100">
-            <div class="card-body text-center">
-                <h4 class="mb-1">{{ respondent_cases_count }}</h4>
-                <p class="mb-0 small">Respondent</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-        <div class="card stats-card bg-danger text-white h-100">
-            <div class="card-body text-center">
-                <h4 class="mb-1">{{ cases_without_user_side }}</h4>
-                <p class="mb-0 small">Unassigned</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-        <div class="card stats-card bg-secondary text-white h-100">
-            <div class="card-body text-center">
-                <h4 class="mb-1">{{ upcoming_hearings_count }}</h4>
-                <p class="mb-0 small">Upcoming</p>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Search & Filter Section -->
-<div class="search-container">
-    <div class="row">
-        <div class="col-12">
-            <div class="card search-inputs-card">
+    <!-- Statistics cards -->
+    <div class="row mb-4">
+        <div class="col-md">
+            <div class="card border-primary text-primary text-center">
                 <div class="card-body">
-                    <div class="row align-items-end">
-                        <div class="col-md-4 mb-3">
-                            <label for="searchInput" class="form-label">Search Cases</label>
-                            <input type="text" class="form-control" id="searchInput" placeholder="Search by case no, parties, or establishment..." onkeyup="handleSearch()">
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label for="dateFromInput" class="form-label">From Date:</label>
-                            <input type="date" class="form-control" id="dateFromInput" onchange="handleSearch()">
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label for="dateToInput" class="form-label">To Date:</label>
-                            <input type="date" class="form-control" id="dateToInput" onchange="handleSearch()">
-                        </div>
-                        <div class="col-md-2 mb-3">
-                            <div class="d-grid">
-                                <button class="btn btn-outline-secondary" onclick="clearAllFilters()">
-                                    <i class="fas fa-times me-1"></i>Clear All
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Quick Date Filters -->
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="btn-group mb-2" role="group" id="dateFilterGroup">
-                                <button type="button" class="btn btn-outline-primary" onclick="setDateFilter('today')">Today</button>
-                                <button type="button" class="btn btn-outline-primary" onclick="setDateFilter('thisWeek')">This Week</button>
-                                <button type="button" class="btn btn-outline-primary" onclick="setDateFilter('thisMonth')">This Month</button>
-                                <button type="button" class="btn btn-outline-primary" onclick="setDateFilter('nextWeek')">Next Week</button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="clearDateFilter()">Clear Dates</button>
-                            </div>
-                            <div class="float-end">
-                                <span class="badge bg-primary" id="searchResultsCount">{{ total_cases }}</span>
-                                <span class="text-muted">Cases Found</span>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="fs-5">Total Cases</div>
+                    <div class="display-6">{{ total_cases }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card border-warning text-warning text-center">
+                <div class="card-body">
+                    <div class="fs-5">Changed</div>
+                    <div class="display-6">{{ changed_cases_count }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card border-success text-success text-center">
+                <div class="card-body">
+                    <div class="fs-5">Reviewed</div>
+                    <div class="display-6">{{ reviewed_cases_count }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card border-info text-info text-center">
+                <div class="card-body">
+                    <div class="fs-5">Upcoming</div>
+                    <div class="display-6">{{ upcoming_hearings_count }}</div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Enhanced Bulk Selection Controls -->
-<div class="bulk-actions-container mb-3" id="bulkActionsContainer" style="display: none;">
-    <div class="alert alert-info">
-        <div class="d-flex justify-content-between align-items-center flex-wrap">
-            <div class="d-flex align-items-center mb-2 mb-md-0">
-                <i class="fas fa-check-square me-2"></i>
-                <span id="selectedCasesText">No cases selected</span>
-            </div>
-            <div class="d-flex gap-2 flex-wrap">
-                <button class="btn btn-success btn-sm" onclick="executeBulkAction('mark_reviewed')" id="bulkMarkReviewedBtn" disabled>
-                    <i class="fas fa-check me-1"></i>Mark as Reviewed
+    <!-- Search and filters -->
+    <div class="row mb-3">
+        <div class="col-md-4 mb-2">
+            <input type="text" class="form-control" id="searchInput" placeholder="Search case, party, or number..." onkeyup="handleSearch()">
+        </div>
+        <div class="col-md-2 mb-2">
+            <input type="date" class="form-control" id="dateFromInput" onchange="handleSearch()">
+        </div>
+        <div class="col-md-2 mb-2">
+            <input type="date" class="form-control" id="dateToInput" onchange="handleSearch()">
+        </div>
+        <div class="col-md-2 mb-2">
+            <button class="btn btn-secondary w-100" onclick="clearAllFilters()">
+                <i class="fas fa-times"></i> Clear
+            </button>
+        </div>
+        <div class="col-md-2 mb-2 d-flex align-items-center">
+            <span>Results: <span id="searchResultsCount" class="badge bg-primary">{{ total_cases }}</span></span>
+        </div>
+    </div>
+
+    <!-- Quick date filters -->
+    <div class="mb-3" id="dateFilterGroup">
+        <button class="btn btn-outline-secondary btn-sm" onclick="setDateFilter('today')">Today</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setDateFilter('thisWeek')">This Week</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setDateFilter('thisMonth')">This Month</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setDateFilter('nextWeek')">Next Week</button>
+    </div>
+
+    <!-- Bulk actions bar -->
+    <div id="bulkActionsContainer" style="display:none;" class="alert alert-primary shadow-sm mb-3">
+        <div class="d-flex gap-2 align-items-center">
+            <i class="fas fa-check-square text-primary"></i>
+            <span id="selectedCasesText" class="fw-bold">0 cases selected</span>
+            <div class="ms-auto d-flex gap-2">
+                <button class="btn btn-success btn-sm" id="bulkMarkReviewedBtn" onclick="executeBulkAction('mark_reviewed')" disabled>
+                    <i class="fas fa-check"></i> Mark Reviewed
                 </button>
-                <button class="btn btn-warning btn-sm" onclick="executeBulkAction('remove_from_reviewed')" id="bulkRemoveReviewedBtn" disabled>
-                    <i class="fas fa-minus me-1"></i>Remove from Reviewed
+                <button class="btn btn-warning btn-sm" id="bulkRemoveReviewedBtn" onclick="executeBulkAction('remove_from_reviewed')" disabled>
+                    <i class="fas fa-undo"></i> Remove from Reviewed
                 </button>
                 <button class="btn btn-primary btn-sm" onclick="showCalendarActionModal()" id="bulkCalendarBtn" disabled>
-                    <i class="fas fa-calendar me-1"></i>Calendar Actions
-                    <span class="badge bg-light text-primary ms-1" id="bulkCalendarCount">0</span>
+                    <i class="fas fa-calendar"></i> Calendar Actions
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Single Select All Button ABOVE tabs -->
+    <div class="d-flex justify-content-end mb-2">
+        <button class="btn btn-outline-primary" id="selectAllGlobalBtn" onclick="handleGlobalSelectAll()">
+            <span id="globalSelectAllText">Select All</span>
+        </button>
+    </div>
+
+    <!-- Case tabs navigation -->
+    <ul class="nav nav-tabs mb-3" id="casesTabs" role="tablist">
+        <li class="nav-item flex-fill" role="presentation">
+            <button class="nav-link active w-100" id="all-cases-tab" data-bs-toggle="tab" data-bs-target="#all-cases" type="button" onclick="switchTab('all-cases')">
+            All Cases 
+            <span class="badge bg-light text-dark">{{ total_cases }}</span>
+        </button>
+        </li>
+        <li class="nav-item flex-fill" role="presentation">
+            <button class="nav-link w-100" id="changed-cases-tab" data-bs-toggle="tab" data-bs-target="#changed-cases" type="button" onclick="switchTab('changed-cases')">
+            Changed 
+            <span class="badge bg-warning text-dark">{{ changed_cases_count }}</span>
+        </button>
+        </li>
+        <li class="nav-item flex-fill" role="presentation">
+            <button class="nav-link w-100" id="reviewed-cases-tab" data-bs-toggle="tab" data-bs-target="#reviewed-cases" type="button" onclick="switchTab('reviewed-cases')">
+            Reviewed 
+            <span class="badge bg-success text-white">{{ reviewed_cases_count }}</span>
+        </button>
+        </li>
+        <li class="nav-item flex-fill" role="presentation">
+            <button class="nav-link w-100" id="upcoming-cases-tab" data-bs-toggle="tab" data-bs-target="#upcoming-cases" type="button" onclick="switchTab('upcoming-cases')">
+            Upcoming 
+            <span class="badge bg-info text-white">{{ upcoming_hearings_count }}</span>
+        </button>
+        </li>
+    </ul>
+
+
+    <!-- Tabs content -->
+    <div class="tab-content" id="casesTabContent">
+        <!-- All Cases Tab -->
+        <div class="tab-pane fade show active" id="all-cases" role="tabpanel">
+            <div class="row" id="allCasesContainer">
+                {% for case in cases %}
+                <div class="col-xl-4 col-lg-6 col-md-6 mb-4">
+                    <div class="card case-card" data-cino="{{ case.cino }}" data-case-no="{{ case.case_no or '' }}" data-petitioner="{{ case.petparty_name or '' }}" data-respondent="{{ case.resparty_name or '' }}" data-establishment="{{ case.establishment_name or '' }}"
+                        data-court="{{ case.court_no_desg_name or '' }}" data-next-date="{{ case.date_next_list or '' }}" data-type="{{ case.type_name or '' }}" data-user-side="{{ case.user_side or '' }}" data-notes="{{ case.user_notes or '' }}">
+
+                        <!-- Card Header with Checkbox -->
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="form-check">
+                                <input class="form-check-input case-selection" type="checkbox" data-cino="{{ case.cino }}" onchange="updateCaseSelection()">
+                                <label class="form-check-label fw-bold">
+                                    {{ case.case_no or 'N/A' }}
+                                </label>
+                            </div>
+                            {% if case.is_changed %}
+                            <span class="badge bg-warning text-dark">Changed</span> {% else %}
+                            <span class="badge bg-success text-white">Reviewed</span> {% endif %}
+                        </div>
+
+                        <!-- Card Body -->
+                        <div class="card-body">
+                            <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6>
+
+                            <!-- Case Parties -->
+                            <div class="case-parties row mb-2">
+                                <div class="col-6">
+                                    <small class="text-muted">Petitioner:</small>
+                                    <div class="fw-medium">{{ case.petparty_name or 'N/A' }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Respondent:</small>
+                                    <div class="fw-medium">{{ case.resparty_name or 'N/A' }}</div>
+                                </div>
+                            </div>
+
+                            <!-- Case Details -->
+                            <div class="case-details mb-2">
+                                <small class="text-muted">Court:</small>
+                                <div>{{ case.court_no_desg_name or 'N/A' }}</div>
+
+                                <!-- Editable Next Hearing Date -->
+                                <small class="text-muted mt-1">Next Hearing:</small>
+                                <div class="input-group input-group-sm">
+                                    <input type="date" class="form-control form-control-sm hearing-date-input" value="{{ case.date_next_list or '' }}" data-cino="{{ case.cino }}" onchange="updateHearingDate('{{ case.cino }}', this.value)">
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" onclick="clearHearingDate('{{ case.cino }}')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+
+                                <small class="text-muted mt-1">Type:</small>
+                                <div>{{ case.type_name or 'N/A' }}</div>
+                            </div>
+
+                            <!-- Notes Section -->
+                            <div class="mb-2">
+                                <small class="text-muted">Notes:</small>
+                                <textarea class="form-control notes-input" rows="2" placeholder="Add your notes here...">{{ case.user_notes or '' }}</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Card Footer -->
+                        <div class="card-footer">
+                            <div class="d-flex gap-2 justify-content-between">
+                                <div class="d-flex gap-1">
+                                    <!-- View button -->
+                                    <button class="btn btn-primary btn-sm" onclick="openCaseDetail('{{ case.cino }}')">
+                                        <i class="fas fa-eye"></i> View
+                                    </button> {% if case.is_changed %}
+                                    <button class="btn btn-success btn-sm" onclick="markAsReviewed('{{ case.cino }}')">
+                                        <i class="fas fa-check"></i> Mark Reviewed
+                                    </button> {% else %}
+                                    <button class="btn btn-outline-warning btn-sm" onclick="removeFromReviewed('{{ case.cino }}')">
+                                        <i class="fas fa-undo"></i> Unmark
+                                    </button> {% endif %}
+                                </div>
+
+                                <div class="d-flex align-items-center">
+                                    {% if case.user_side %}
+                                    <span class="badge bg-info">{{ case.user_side.title() }}</span> {% else %}
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="showUserSideModal('{{ case.cino }}', '')">
+                                        <i class="fas fa-user-tag"></i> Set Side
+                                    </button> {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Changed Cases Tab -->
+        <div class="tab-pane fade" id="changed-cases" role="tabpanel">
+            <div class="row" id="changedCasesContainer">
+                {% for case in changed_cases %}
+                <div class="col-xl-4 col-lg-6 col-md-6 mb-4">
+                    <div class="card case-card border-warning shadow h-100" data-cino="{{ case.cino }}" data-changed="{{ case.is_changed|lower }}" data-case-no="{{ case.case_no or '' }}" data-petitioner="{{ case.petparty_name or '' }}" data-respondent="{{ case.resparty_name or '' }}"
+                        data-establishment="{{ case.establishment_name or '' }}" data-court="{{ case.court_no_desg_name or '' }}" data-next-date="{{ case.date_next_list or '' }}" data-type="{{ case.type_name or '' }}" data-user-side="{{ case.user_side or '' }}"
+                        data-notes="{{ case.user_notes or '' }}">
+
+                        <!-- Card Header with Checkbox -->
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="form-check">
+                                <input class="form-check-input case-selection" type="checkbox" data-cino="{{ case.cino }}" onchange="updateCaseSelection()">
+                                <label class="form-check-label fw-bold">
+                                    {{ case.case_no or 'N/A' }}
+                                </label>
+                            </div>
+                            <span class="badge bg-warning text-dark">Changed</span>
+                        </div>
+
+                        <!-- Card Body -->
+                        <div class="card-body">
+                            <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6>
+
+                            <!-- Case Parties -->
+                            <div class="case-parties row mb-2">
+                                <div class="col-6">
+                                    <small class="text-muted">Petitioner:</small>
+                                    <div class="fw-medium">{{ case.petparty_name or 'N/A' }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Respondent:</small>
+                                    <div class="fw-medium">{{ case.resparty_name or 'N/A' }}</div>
+                                </div>
+                            </div>
+
+                            <!-- Case Details -->
+                            <div class="case-details mb-2">
+                                <small class="text-muted">Court:</small>
+                                <div>{{ case.court_no_desg_name or 'N/A' }}</div>
+
+                                <!-- Editable Next Hearing Date -->
+                                <small class="text-muted mt-1">Next Hearing:</small>
+                                <div class="input-group input-group-sm">
+                                    <input type="date" class="form-control form-control-sm hearing-date-input" value="{{ case.date_next_list or '' }}" data-cino="{{ case.cino }}" onchange="updateHearingDate('{{ case.cino }}', this.value)">
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" onclick="clearHearingDate('{{ case.cino }}')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+
+                                <small class="text-muted mt-1">Type:</small>
+                                <div>{{ case.type_name or 'N/A' }}</div>
+                            </div>
+
+                            <!-- Notes Section -->
+                            <div class="mb-2">
+                                <small class="text-muted">Notes:</small>
+                                <textarea class="form-control notes-input" rows="2" placeholder="Add your notes here...">{{ case.user_notes or '' }}</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Card Footer -->
+                        <div class="card-footer">
+                            <div class="d-flex gap-2 justify-content-between">
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-primary btn-sm" onclick="openCaseDetail('{{ case.cino }}')">
+                                        <i class="fas fa-eye"></i> View
+                                    </button>
+                                    <button class="btn btn-success btn-sm" onclick="markAsReviewed('{{ case.cino }}')">
+                                        <i class="fas fa-check"></i> Mark Reviewed
+                                    </button>
+                                </div>
+
+                                <div class="d-flex align-items-center">
+                                    {% if case.user_side %}
+                                    <span class="badge bg-info">{{ case.user_side.title() }}</span> {% else %}
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="showUserSideModal('{{ case.cino }}', '')">
+                                        <i class="fas fa-user-tag"></i> Set Side
+                                    </button> {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Reviewed Cases Tab -->
+        <div class="tab-pane fade" id="reviewed-cases" role="tabpanel">
+            <div class="row" id="reviewedCasesContainer">
+                {% for case in reviewed_cases %}
+                <div class="col-xl-4 col-lg-6 col-md-6 mb-4">
+                    <div class="card case-card border-success shadow h-100" data-cino="{{ case.cino }}" data-changed="{{ case.is_changed|lower }}" data-case-no="{{ case.case_no or '' }}" data-petitioner="{{ case.petparty_name or '' }}" data-respondent="{{ case.resparty_name or '' }}"
+                        data-establishment="{{ case.establishment_name or '' }}" data-court="{{ case.court_no_desg_name or '' }}" data-next-date="{{ case.date_next_list or '' }}" data-type="{{ case.type_name or '' }}" data-user-side="{{ case.user_side or '' }}"
+                        data-notes="{{ case.user_notes or '' }}">
+
+                        <!-- Card Header with Checkbox -->
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="form-check">
+                                <input class="form-check-input case-selection" type="checkbox" data-cino="{{ case.cino }}" onchange="updateCaseSelection()">
+                                <label class="form-check-label fw-bold">
+                                    {{ case.case_no or 'N/A' }}
+                                </label>
+                            </div>
+                            <span class="badge bg-success text-white">Reviewed</span>
+                        </div>
+
+                        <!-- Card Body -->
+                        <div class="card-body">
+                            <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6>
+
+                            <!-- Case Parties -->
+                            <div class="case-parties row mb-2">
+                                <div class="col-6">
+                                    <small class="text-muted">Petitioner:</small>
+                                    <div class="fw-medium">{{ case.petparty_name or 'N/A' }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Respondent:</small>
+                                    <div class="fw-medium">{{ case.resparty_name or 'N/A' }}</div>
+                                </div>
+                            </div>
+
+                            <!-- Case Details -->
+                            <div class="case-details mb-2">
+                                <small class="text-muted">Court:</small>
+                                <div>{{ case.court_no_desg_name or 'N/A' }}</div>
+
+                                <!-- Editable Next Hearing Date -->
+                                <small class="text-muted mt-1">Next Hearing:</small>
+                                <div class="input-group input-group-sm">
+                                    <input type="date" class="form-control form-control-sm hearing-date-input" value="{{ case.date_next_list or '' }}" data-cino="{{ case.cino }}" onchange="updateHearingDate('{{ case.cino }}', this.value)">
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" onclick="clearHearingDate('{{ case.cino }}')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+
+                                <small class="text-muted mt-1">Type:</small>
+                                <div>{{ case.type_name or 'N/A' }}</div>
+                            </div>
+
+                            <!-- Notes Section -->
+                            <div class="mb-2">
+                                <small class="text-muted">Notes:</small>
+                                <textarea class="form-control notes-input" rows="2" placeholder="Add your notes here...">{{ case.user_notes or '' }}</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Card Footer -->
+                        <div class="card-footer">
+                            <div class="d-flex gap-2 justify-content-between">
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-primary btn-sm" onclick="openCaseDetail('{{ case.cino }}')">
+                                        <i class="fas fa-eye"></i> View
+                                    </button>
+                                    <button class="btn btn-outline-warning btn-sm" onclick="removeFromReviewed('{{ case.cino }}')">
+                                        <i class="fas fa-undo"></i> Unmark
+                                    </button>
+                                </div>
+
+                                <div class="d-flex align-items-center">
+                                    {% if case.user_side %}
+                                    <span class="badge bg-info">{{ case.user_side.title() }}</span> {% else %}
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="showUserSideModal('{{ case.cino }}', '')">
+                                        <i class="fas fa-user-tag"></i> Set Side
+                                    </button> {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Upcoming Cases Tab -->
+        <div class="tab-pane fade" id="upcoming-cases" role="tabpanel">
+            <div class="row" id="upcomingCasesContainer">
+                {% for case in upcoming_cases %}
+                <div class="col-xl-4 col-lg-6 col-md-6 mb-4">
+                    <div class="card case-card {{ 'border-warning' if case.is_changed else 'border-info' }} shadow h-100" data-cino="{{ case.cino }}" data-changed="{{ case.is_changed|lower }}" data-case-no="{{ case.case_no or '' }}" data-petitioner="{{ case.petparty_name or '' }}"
+                        data-respondent="{{ case.resparty_name or '' }}" data-establishment="{{ case.establishment_name or '' }}" data-court="{{ case.court_no_desg_name or '' }}" data-next-date="{{ case.date_next_list or '' }}" data-type="{{ case.type_name or '' }}"
+                        data-user-side="{{ case.user_side or '' }}" data-notes="{{ case.user_notes or '' }}">
+
+                        <!-- Card Header with Checkbox -->
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="form-check">
+                                <input class="form-check-input case-selection" type="checkbox" data-cino="{{ case.cino }}" onchange="updateCaseSelection()">
+                                <label class="form-check-label fw-bold">
+                                    {{ case.case_no or 'N/A' }}
+                                </label>
+                            </div>
+                            {% if case.is_changed %}
+                            <span class="badge bg-warning text-dark">Changed</span> {% else %}
+                            <span class="badge bg-info text-white">Upcoming</span> {% endif %}
+                        </div>
+
+                        <!-- Card Body -->
+                        <div class="card-body">
+                            <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6>
+
+                            <!-- Case Parties -->
+                            <div class="case-parties row mb-2">
+                                <div class="col-6">
+                                    <small class="text-muted">Petitioner:</small>
+                                    <div class="fw-medium">{{ case.petparty_name or 'N/A' }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Respondent:</small>
+                                    <div class="fw-medium">{{ case.resparty_name or 'N/A' }}</div>
+                                </div>
+                            </div>
+
+                            <!-- Case Details -->
+                            <div class="case-details mb-2">
+                                <small class="text-muted">Court:</small>
+                                <div>{{ case.court_no_desg_name or 'N/A' }}</div>
+
+                                <!-- Editable Next Hearing Date -->
+                                <small class="text-muted mt-1">Next Hearing:</small>
+                                <div class="input-group input-group-sm">
+                                    <input type="date" class="form-control form-control-sm hearing-date-input" value="{{ case.date_next_list or '' }}" data-cino="{{ case.cino }}" onchange="updateHearingDate('{{ case.cino }}', this.value)">
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" onclick="clearHearingDate('{{ case.cino }}')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+
+                                <small class="text-muted mt-1">Type:</small>
+                                <div>{{ case.type_name or 'N/A' }}</div>
+                            </div>
+
+                            <!-- Notes Section -->
+                            <div class="mb-2">
+                                <small class="text-muted">Notes:</small>
+                                <textarea class="form-control notes-input" rows="2" placeholder="Add your notes here...">{{ case.user_notes or '' }}</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Card Footer -->
+                        <div class="card-footer">
+                            <div class="d-flex gap-2 justify-content-between">
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-primary btn-sm" onclick="openCaseDetail('{{ case.cino }}')">
+                                        <i class="fas fa-eye"></i> View
+                                    </button> {% if case.is_changed %}
+                                    <button class="btn btn-success btn-sm" onclick="markAsReviewed('{{ case.cino }}')">
+                                        <i class="fas fa-check"></i> Mark Reviewed
+                                    </button> {% else %}
+                                    <button class="btn btn-outline-warning btn-sm" onclick="removeFromReviewed('{{ case.cino }}')">
+                                        <i class="fas fa-undo"></i> Unmark
+                                    </button> {% endif %}
+                                </div>
+
+                                <div class="d-flex align-items-center">
+                                    {% if case.user_side %}
+                                    <span class="badge bg-info">{{ case.user_side.title() }}</span> {% else %}
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="showUserSideModal('{{ case.cino }}', '')">
+                                        <i class="fas fa-user-tag"></i> Set Side
+                                    </button> {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Calendar Action Modal -->
+<div class="modal fade" id="calendarActionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-calendar-alt me-2"></i>Calendar Actions for Cases
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card border-info">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0">Selected Cases</h6>
+                            </div>
+                            <div class="card-body text-center">
+                                <h3 class="text-info" id="modalSelectedCount">0</h3>
+                                <p class="mb-0">Cases Selected</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-secondary">
+                            <div class="card-header bg-secondary text-white">
+                                <h6 class="mb-0">All Cases in Tab</h6>
+                            </div>
+                            <div class="card-body text-center">
+                                <h3 class="text-secondary" id="modalAllCount">0</h3>
+                                <p class="mb-0">Total in Current Tab</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <button class="btn btn-success w-100 mb-2" onclick="executeCalendarAction('create', 'selected')">
+                            <i class="fas fa-calendar-plus me-2"></i>Create Calendar for Selected
+                        </button>
+                        <button class="btn btn-outline-danger w-100" onclick="executeCalendarAction('delete', 'selected')">
+                            <i class="fas fa-calendar-times me-2"></i>Delete Events for Selected
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button class="btn btn-primary w-100 mb-2" onclick="executeCalendarAction('create', 'all')">
+                            <i class="fas fa-calendar-plus me-2"></i>Create Calendar for All
+                        </button>
+                        <button class="btn btn-outline-danger w-100" onclick="executeCalendarAction('delete', 'all')">
+                            <i class="fas fa-calendar-times me-2"></i>Delete Events for All
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete ALL Cases Modal -->
+<div class="modal fade" id="deleteAllModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Delete ALL Cases & Calendar Events
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2 fw-bold text-danger">This action cannot be undone.<br>All cases and related calendar events will be deleted.</p>
+                <div class="form-check mb-2">
+                    <input type="checkbox" class="form-check-input" id="confirmDeleteDataCheck" onchange="validateDeletionForm()">
+                    <label class="form-check-label" for="confirmDeleteDataCheck">I understand the consequences.</label>
+                </div>
+                <div class="mb-2">
+                    <input type="text" class="form-control" id="confirmationText" placeholder='Type "DELETE_ALL_FOREVER" to confirm' oninput="validateDeletionForm()">
+                </div>
+                <button class="btn btn-danger w-100" id="confirmDeleteAllBtn" onclick="executeDeleteAll()" disabled>
+                    <i class="fas fa-trash"></i> Confirm Delete ALL
                 </button>
             </div>
         </div>
     </div>
 </div>
-<!-- Tabs Navigation -->
-<ul class="nav nav-tabs" id="casesTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="all-cases-tab" data-bs-toggle="tab" data-bs-target="#all-cases" type="button" role="tab" onclick="switchTab('all-cases')">
-            All Cases
-            <span class="badge bg-light text-primary ms-2">{{ total_cases }}</span>
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="petitioner-cases-tab" data-bs-toggle="tab" data-bs-target="#petitioner-cases" type="button" role="tab" onclick="switchTab('petitioner-cases')">
-            Petitioner Cases
-            <span class="badge bg-info ms-2">{{ petitioner_cases_count }}</span>
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="respondent-cases-tab" data-bs-toggle="tab" data-bs-target="#respondent-cases" type="button" role="tab" onclick="switchTab('respondent-cases')">
-            Respondent Cases
-            <span class="badge bg-warning ms-2">{{ respondent_cases_count }}</span>
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="unassigned-cases-tab" data-bs-toggle="tab" data-bs-target="#unassigned-cases" type="button" role="tab" onclick="switchTab('unassigned-cases')">
-            Unassigned Cases
-            <span class="badge bg-danger ms-2">{{ cases_without_user_side }}</span>
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="upcoming-cases-tab" data-bs-toggle="tab" data-bs-target="#upcoming-cases" type="button" role="tab" onclick="switchTab('upcoming-cases')">
-            Upcoming Hearings
-            <span class="badge bg-secondary ms-2">{{ upcoming_hearings_count }}</span>
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="reviewed-cases-tab" data-bs-toggle="tab" data-bs-target="#reviewed-cases" type="button" role="tab" onclick="switchTab('reviewed-cases')">
-            Reviewed Cases
-            <span class="badge bg-success ms-2">{{ reviewed_cases_count }}</span>
-        </button>
-    </li>
-</ul>
 
-<!-- Tab Content -->
-<div class="tab-content" id="casesTabContent">
-    <!-- All Cases Tab -->
-    <div class="tab-pane fade show active" id="all-cases" role="tabpanel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="text-primary mb-0">
-                <i class="fas fa-list me-2"></i>All Cases
-            </h5>
-            <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleAllSelection('all-cases')">
-                <i class="fas fa-check-square me-1"></i><span id="toggleAllText">Select All</span>
-            </button>
-        </div>
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/static/alerts.js"></script>
+<script src="/static/app.js"></script>
 
-        <div class="row" id="allCasesContainer">
-            {% for case in cases %} {% include 'case_card_law_firm.html' %} {% endfor %}
-        </div>
-    </div>
+<script>
+    // View function - no new window
+    function openCaseDetail(cino) {
+        window.location.href = `/case/${cino}`;
+    }
 
-    <!-- Petitioner Cases Tab -->
-    <div class="tab-pane fade" id="petitioner-cases" role="tabpanel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="text-info mb-0">
-                <i class="fas fa-user-tie me-2"></i>Petitioner Cases
-            </h5>
-            <button type="button" class="btn btn-outline-info btn-sm" onclick="toggleAllSelection('petitioner-cases')">
-                <i class="fas fa-check-square me-1"></i><span id="togglePetitionerText">Select All</span>
-            </button>
-        </div>
+    // Update hearing date function
+    function updateHearingDate(cino, newDate) {
+        if (!newDate) {
+            showAlert('Please select a valid date', 'warning');
+            return;
+        }
 
-        <div class="row" id="petitionerCasesContainer">
-            {% for case in petitioner_cases %} {% include 'case_card_law_firm.html' %} {% endfor %}
-        </div>
-    </div>
+        fetch(`/case/${cino}/update_hearing_date`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    hearing_date: newDate
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showAlert('Failed to update hearing date: ' + data.error, 'danger');
+                } else {
+                    showAlert('Hearing date updated successfully', 'success');
+                    // Update the card's data attribute
+                    const card = document.querySelector(`[data-cino="${cino}"]`);
+                    if (card) {
+                        card.dataset.nextDate = newDate;
+                    }
+                }
+            })
+            .catch(error => {
+                showAlert('Error updating hearing date: ' + error.message, 'danger');
+            });
+    }
 
-    <!-- Respondent Cases Tab -->
-    <div class="tab-pane fade" id="respondent-cases" role="tabpanel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="text-warning mb-0">
-                <i class="fas fa-user-shield me-2"></i>Respondent Cases
-            </h5>
-            <button type="button" class="btn btn-outline-warning btn-sm" onclick="toggleAllSelection('respondent-cases')">
-                <i class="fas fa-check-square me-1"></i><span id="toggleRespondentText">Select All</span>
-            </button>
-        </div>
+    // Clear hearing date
+    function clearHearingDate(cino) {
+        const input = document.querySelector(`input[data-cino="${cino}"]`);
+        if (input) {
+            input.value = '';
+            updateHearingDate(cino, '');
+        }
+    }
 
-        <div class="row" id="respondentCasesContainer">
-            {% for case in respondent_cases %} {% include 'case_card_law_firm.html' %} {% endfor %}
-        </div>
-    </div>
+    // Show calendar action modal
+    function showCalendarActionModal() {
+        const modal = new bootstrap.Modal(document.getElementById('calendarActionModal'));
+        const selectedCount = selectedCases.size;
+        const allCount = document.querySelectorAll('.tab-pane.active .case-card').length;
 
-    <!-- Unassigned Cases Tab -->
-    <div class="tab-pane fade" id="unassigned-cases" role="tabpanel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="text-danger mb-0">
-                <i class="fas fa-user-times me-2"></i>Unassigned Cases
-            </h5>
-            <button type="button" class="btn btn-outline-danger btn-sm" onclick="toggleAllSelection('unassigned-cases')">
-                <i class="fas fa-check-square me-1"></i><span id="toggleUnassignedText">Select All</span>
-            </button>
-        </div>
+        document.getElementById('modalSelectedCount').textContent = selectedCount;
+        document.getElementById('modalAllCount').textContent = allCount;
 
-        <div class="row" id="unassignedCasesContainer">
-            {% for case in unassigned_cases %} {% include 'case_card_law_firm.html' %} {% endfor %}
-        </div>
-    </div>
+        modal.show();
+    }
 
-    <!-- Upcoming Cases Tab -->
-    <div class="tab-pane fade" id="upcoming-cases" role="tabpanel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="text-secondary mb-0">
-                <i class="fas fa-clock me-2"></i>Upcoming Hearings
-            </h5>
-            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleAllSelection('upcoming-cases')">
-                <i class="fas fa-check-square me-1"></i><span id="toggleUpcomingText">Select All</span>
-            </button>
-        </div>
+    // Extract case data from card
+    function extractCaseDataFromCard(card) {
+        return {
+            cino: card.dataset.cino || '',
+            case_no: card.dataset.caseNo || '',
+            petparty_name: card.dataset.petitioner || '',
+            resparty_name: card.dataset.respondent || '',
+            establishment_name: card.dataset.establishment || '',
+            court_no_desg_name: card.dataset.court || '',
+            date_next_list: card.dataset.nextDate || '',
+            type_name: card.dataset.type || '',
+            user_side: card.dataset.userSide || '',
+            user_notes: card.dataset.notes || ''
+        };
+    }
 
-        <div class="row" id="upcomingCasesContainer">
-            {% for case in upcoming_cases %} {% include 'case_card_law_firm.html' %} {% endfor %}
-        </div>
-    </div>
+    // Execute calendar action
+    function executeCalendarAction(action, scope) {
+        let cases = [];
 
-    <!-- Reviewed Cases Tab -->
-    <div class="tab-pane fade" id="reviewed-cases" role="tabpanel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="text-success mb-0">
-                <i class="fas fa-check-circle me-2"></i>Reviewed Cases
-            </h5>
-            <button type="button" class="btn btn-outline-success btn-sm" onclick="toggleAllSelection('reviewed-cases')">
-                <i class="fas fa-check-square me-1"></i><span id="toggleReviewedText">Select All</span>
-            </button>
-        </div>
+        if (scope === 'selected') {
+            if (selectedCases.size === 0) {
+                showAlert('Please select at least one case', 'warning');
+                return;
+            }
 
-        <div class="row" id="reviewedCasesContainer">
-            {% for case in reviewed_cases %} {% include 'case_card_law_firm.html' %} {% endfor %}
-        </div>
-    </div>
-</div>
+            selectedCases.forEach(cino => {
+                const card = document.querySelector(`[data-cino="${cino}"]`);
+                if (card) {
+                    cases.push(extractCaseDataFromCard(card));
+                }
+            });
+        } else {
+            const activeTab = document.querySelector('.tab-pane.active');
+            const allCards = activeTab.querySelectorAll('.case-card');
 
-{% include 'modals.html' %} {% endblock %}
+            allCards.forEach(card => {
+                cases.push(extractCaseDataFromCard(card));
+            });
+        }
+
+        if (action === 'create') {
+            fetch('/create_calendar_events', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        filter: scope === 'selected' ? 'selected_cases_only' : 'current_tab_all',
+                        scope: scope,
+                        cases: cases
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showAlert('Calendar creation failed: ' + data.error, 'danger');
+                    } else {
+                        showAlert(data.message, 'success');
+                    }
+                })
+                .catch(error => {
+                    showAlert('Calendar creation failed: ' + error.message, 'danger');
+                });
+        } else if (action === 'delete') {
+            showConfirm(`Delete calendar events for ${cases.length} cases?`, 'warning')
+                .then(confirmed => {
+                    if (!confirmed) return;
+
+                    fetch('/delete_selected_calendar_events', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                cases: cases
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.error) {
+                                showAlert('Calendar deletion failed: ' + data.error, 'danger');
+                            } else {
+                                showAlert(data.message, 'success');
+                            }
+                        })
+                        .catch(error => {
+                            showAlert('Calendar deletion failed: ' + error.message, 'danger');
+                        });
+                });
+        }
+
+        // Hide modal
+        const calendarModal = bootstrap.Modal.getInstance(document.getElementById('calendarActionModal'));
+        if (calendarModal) {
+            calendarModal.hide();
+        }
+    }
+
+    // File upload handler
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showAlert(data.error, 'danger');
+                    } else {
+                        showAlert(data.message, 'success');
+                        setTimeout(() => location.reload(), 1500);
+                    }
+                })
+                .catch(error => {
+                    showAlert('Upload failed: ' + error.message, 'danger');
+                });
+        }
+    });
+</script>
+
+<style>
+    /* Fix nav-tabs with single select all button on right */
+    
+    .nav-tabs .nav-item {
+        position: relative;
+        flex: 1;
+    }
+    
+    .nav-tabs .nav-link {
+        padding-right: 100px;
+        /* Make space for button */
+    }
+    
+    .nav-tabs .btn {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    /* Hearing date input styling */
+    
+    .hearing-date-input {
+        font-size: 0.875rem;
+    }
+    /* Bulk actions styling */
+    
+    #bulkActionsContainer {
+        border-left: 4px solid var(--bs-primary);
+    }
+</style>
+
+{% endblock %}
