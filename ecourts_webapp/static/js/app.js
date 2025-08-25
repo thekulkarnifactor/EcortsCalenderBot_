@@ -138,7 +138,9 @@ function setDateFilter(period) {
             fromDate = nextWeekStart.toISOString().split('T');
             toDate = nextWeekEnd.toISOString().split('T');
             break;
-            
+        case 'all':
+                fromDate = toDate = '';
+                break;
         default:
             console.error('Unknown period:', period);
             return;
@@ -216,6 +218,7 @@ function clearAllFilters() {
 
     // Apply cleared filters
     filterCases();
+    updateTabCounts();
 }
 
 // FIXED: Handle search function
@@ -247,12 +250,12 @@ function filterCases() {
     if (!activeTabPane) return;
 
     const casesToFilter = activeTabPane.querySelectorAll('.case-card');
-
+    
     casesToFilter.forEach(card => {
         const container = card.closest('.col-xl-4, .col-lg-6');
         if (!container) return;
 
-        let matches = true;
+        let matches = true
 
         // FIXED: Use data attributes for reliable data access
         const caseData = {
@@ -320,6 +323,7 @@ function filterCases() {
 
     updateSearchResultsCount(visibleCount);
     updateToggleButtonState();
+    updateTabCounts();
 }
 
 function updateSearchResultsCount(count) {
@@ -1119,3 +1123,273 @@ function updateGlobalSelectAllText() {
     const allSelected = visibleCheckboxes.length > 0 && visibleCheckboxes.every(cb => cb.checked);
     document.getElementById('globalSelectAllText').textContent = allSelected ? 'Deselect All' : 'Select All';
 }
+
+// Function to update tab counts based on current filters
+function updateTabCounts() {
+    const tabs = [
+        { id: 'all-cases', countId: 'all-cases-count' },
+        { id: 'active-cases', countId: 'active-cases-count' },
+        { id: 'changed-cases', countId: 'changed-cases-count' },
+        { id: 'upcoming-cases', countId: 'upcoming-cases-count' },
+        { id: 'reviewed-cases', countId: 'reviewed-cases-count' },
+        { id: 'disposed-cases', countId: 'disposed-cases-count' }
+    ];
+
+    tabs.forEach(tab => {
+        const count = getFilteredCaseCount(tab.id);
+        const countElement = document.getElementById(tab.countId);
+        if (countElement) {
+            countElement.textContent = count;
+        }
+    });
+}
+
+// Function to get filtered case count for a specific tab
+function getFilteredCaseCount(tabId) {
+    const tabPane = document.getElementById(tabId);
+    if (!tabPane) return 0;
+
+    const casesToFilter = tabPane.querySelectorAll('.case-card');
+    let visibleCount = 0;
+
+    casesToFilter.forEach(card => {
+        const container = card.closest('.col-xl-4, .col-lg-6');
+        if (!container) return;
+
+        let matches = true;
+
+        // Get case data
+        const caseData = {
+            cino: card.dataset.cino || '',
+            caseNo: card.dataset.caseNo || '',
+            petitioner: card.dataset.petitioner || '',
+            respondent: card.dataset.respondent || '',
+            establishment: card.dataset.establishment || '',
+            nextDate: card.dataset.nextDate || ''
+        };
+
+        // Text search filtering
+        if (currentFilters.text) {
+            const searchTerm = currentFilters.text.toLowerCase();
+            matches = matches && (
+                caseData.cino.toLowerCase().includes(searchTerm) ||
+                caseData.caseNo.toLowerCase().includes(searchTerm) ||
+                caseData.petitioner.toLowerCase().includes(searchTerm) ||
+                caseData.respondent.toLowerCase().includes(searchTerm) ||
+                caseData.establishment.toLowerCase().includes(searchTerm)
+            );
+        }
+
+        // Date filtering
+        if ((currentFilters.dateFrom || currentFilters.dateTo) && caseData.nextDate) {
+            try {
+                const caseDate = new Date(caseData.nextDate);
+                
+                if (!isNaN(caseDate.getTime())) {
+                    if (currentFilters.dateFrom) {
+                        const fromDate = new Date(currentFilters.dateFrom);
+                        if (caseDate < fromDate) {
+                            matches = false;
+                        }
+                    }
+                    if (currentFilters.dateTo) {
+                        const toDate = new Date(currentFilters.dateTo);
+                        toDate.setHours(23, 59, 59, 999);
+                        if (caseDate > toDate) {
+                            matches = false;
+                        }
+                    }
+                } else {
+                    if (currentFilters.dateFrom || currentFilters.dateTo) {
+                        matches = false;
+                    }
+                }
+            } catch (e) {
+                matches = false;
+            }
+        } else if (currentFilters.dateFrom || currentFilters.dateTo) {
+            matches = false;
+        }
+
+        if (matches) visibleCount++;
+    });
+
+    return visibleCount;
+}
+
+// function to export the cases in the current tab as CSV
+function exportCurrentTabAsCSV() {
+    const activeTabPane = document.querySelector('.tab-pane.active');
+    if (!activeTabPane) {
+        showAlert('No active tab found for export', 'warning');
+        return;
+    }
+
+    const tabId = activeTabPane.id;
+    const casesToExport = [];
+
+    const allCards = activeTabPane.querySelectorAll('.case-card');
+    allCards.forEach(card => {
+        const caseData = extractCaseDataFromCard(card);
+        if (caseData) {
+            casesToExport.push(caseData);
+        }
+    });
+
+    if (casesToExport.length === 0) {
+        showAlert('No cases available for export in this tab', 'info');
+        return;
+    }
+
+    // Convert cases to CSV format
+    const headers = ['CINO', 'Case No', 'Petitioner', 'Respondent', 'Establishment', 'Court', 'Next Hearing Date', 'Type', 'User Side', 'User Notes'];
+    const csvRows = [headers.join(',')];
+
+    casesToExport.forEach(caseItem => {
+        const row = [
+            `"${caseItem.cino}"`,
+            `"${caseItem.case_no}"`,
+            `"${caseItem.petparty_name.replace(/"/g, '""')}"`,
+            `"${caseItem.resparty_name.replace(/"/g, '""')}"`,
+            `"${caseItem.establishment_name.replace(/"/g, '""')}"`,
+            `"${caseItem.court_no_desg_name.replace(/"/g, '""')}"`,
+            `"${caseItem.date_next_list}"`,
+            `"${caseItem.type_name.replace(/"/g, '""')}"`,
+            `"${caseItem.user_side}"`,
+            `"${caseItem.user_notes.replace(/"/g, '""')}"`
+        ];
+        csvRows.push(row.join(','));
+    });
+
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${tabId}_cases_export.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    URL.revokeObjectURL(url);
+    
+    showAlert(`Exported ${casesToExport.length} cases from current tab as CSV`, 'success');
+    console.log(`Exported ${casesToExport.length} cases from tab ${tabId}`);
+}
+
+//function to export all cases details as txt
+// details id INTEGER PRIMARY KEY AUTOINCREMENT,
+            // cino TEXT UNIQUE,
+            // case_no TEXT,
+            // petparty_name TEXT,
+            // resparty_name TEXT,
+            // establishment_name TEXT,
+            // state_name TEXT,
+            // district_name TEXT,
+            // date_next_list TEXT,
+            // date_last_list TEXT,
+            // purpose_name TEXT,
+            // type_name TEXT,
+            // court_no_desg_name TEXT,
+            // disp_name TEXT,
+            // updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            // user_notes TEXT DEFAULT '',
+            // is_changed BOOLEAN DEFAULT FALSE,
+            // change_summary TEXT DEFAULT '',
+            // raw_data TEXT,
+            // user_side TEXT DEFAULT '',
+            // reg_no INTEGER,
+            // reg_year INTEGER,
+            // date_of_decision TEXT DEFAULT NULL
+// case details in a structured format 
+// "{\"cino\":\"MHPU040389712018\",\"type_name\":\"Cri.M.A.\",\"case_no\":\"201900028562018\",\"reg_year\":2018,\"reg_no\":2856,\"petparty_name\":\"Vaishali Uday Rawal\",\"resparty_name\":\"Uday Mukund Rawal\",\"fil_year\":\"0\",\"fil_no\":\"0\",\"establishment_name\":\"J.M.F.C.COURT PUNE MAHARASHTRA\",\"establishment_code\":\"MHPU04\",\"state_code\":\"1\",\"district_code\":\"25\",\"state_name\":\"Maharashtra\",\"district_name\":\"Pune\",\"date_next_list\":\"2025-09-12\",\"date_of_decision\":null,\"date_last_list\":\"2025-08-13\",\"updated\":true,\"ltype_name\":\"फौजदारी किरकोळ अर्ज\",\"lestablishment_name\":\"दिवाणी व फौजदारी न्यायालय, पुणे\",\"lstate_name\":\"\",\"ldistrict_name\":\"पुणे\"}", 
+async function exportAllCasesAsTxt() {
+    try {
+        // Fetch cases from Flask API
+        const response = await fetch('/api/cases');
+        if (!response.ok) {
+            throw new Error('Failed to fetch cases');
+        }
+
+        const cases = await response.json();
+
+        // Convert each object into stringified JSON
+        const formattedCases = cases.map(c => JSON.stringify(c));
+
+        // Wrap inside array (same format as myCases.txt)
+        const textData = JSON.stringify(formattedCases, null, 4);
+
+        // Download as text file
+        const blob = new Blob([textData], { type: "text/plain" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "mCases.txt";
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+    } catch (err) {
+        console.error("Error exporting cases:", err);
+        alert("Failed to export cases. Check console for details.");
+    }
+}
+
+
+function saveCaseChanges(cino) {
+        console.log('Saving notes for case:', cino);
+
+        // Try multiple selectors to find the notes input
+        let notesInput = document.querySelector('#notes-input') ||
+            document.querySelector('.notes-input') ||
+            document.querySelector('textarea[name="notes"]') ||
+            document.querySelector('textarea');
+
+        if (!notesInput) {
+            showAlert('Notes input field not found!', 'danger');
+            console.error('Could not find notes input field');
+            return;
+        }
+
+        let notes = notesInput.value.trim();
+        console.log('Notes content:', notes);
+
+        if (!notes) {
+            showAlert('Please enter some notes before saving', 'warning');
+            return;
+        }
+
+        // Disable button during save
+        let saveButton = event.target;
+        let originalText = saveButton.innerHTML;
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Saving...';
+
+        fetch(`/case/${cino}/update`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    notes: notes
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showAlert('Failed to save notes: ' + data.error, 'danger');
+                } else {
+                    showAlert('Notes saved successfully!', 'success');
+                }
+            })
+            .catch(error => {
+                console.error('Save error:', error);
+                showAlert('Failed to save notes: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                // Re-enable button
+                saveButton.disabled = false;
+                saveButton.innerHTML = originalText;
+            });
+    }
+
+    

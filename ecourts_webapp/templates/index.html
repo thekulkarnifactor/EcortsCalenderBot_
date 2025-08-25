@@ -6,7 +6,11 @@
 
     <!-- Page header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="fas fa-balance-scale"></i> Date Joshi and Associates</h2>
+        <h2>
+            <a href="https://datejoshiandassociates.com/" target="_blank" style="text-decoration: none; color: inherit;">
+                <i class="fas fa-balance-scale"></i> Date Joshi and Associates
+            </a>
+        </h2>
         <div class="d-flex gap-2">
             <input type="file" id="fileInput" accept=".txt" style="display:none;">
             <label for="fileInput" class="btn btn-primary">
@@ -20,6 +24,9 @@
             </button>
             <button type="button" class="btn btn-danger" onclick="showDeleteAllModal()">
                 <i class="fas fa-trash-alt me-2"></i>Delete ALL Cases
+            </button>
+            <button type="button" class="btn btn-success" onclick="exportAllCasesAsTxt()" title="Export Cases to Text File">
+                <i class="fas fa-download me-2"></i> Export Cases
             </button>
         </div>
     </div>
@@ -35,18 +42,26 @@
             </div>
         </div>
         <div class="col-md">
+            <div class="card border-success text-success text-center">
+                <div class="card-body">
+                    <div class="fs-5">Active Cases</div>
+                    <div class="display-6">{{ active_cases_count }}</div>
+                </div>
+            </div>
+        </div>
+        <!-- <div class="col-md">
+            <div class="card border-danger text-danger text-center">
+                <div class="card-body">
+                    <div class="fs-5">Disposed Cases</div>
+                    <div class="display-6">{{ disposed_cases_count }}</div>
+                </div>
+            </div>
+        </div> -->
+        <div class="col-md">
             <div class="card border-warning text-warning text-center">
                 <div class="card-body">
                     <div class="fs-5">Changed</div>
                     <div class="display-6">{{ changed_cases_count }}</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md">
-            <div class="card border-success text-success text-center">
-                <div class="card-body">
-                    <div class="fs-5">Reviewed</div>
-                    <div class="display-6">{{ reviewed_cases_count }}</div>
                 </div>
             </div>
         </div>
@@ -81,7 +96,7 @@
         </div>
     </div>
 
-    <!-- Date Filter Buttons - FIXED: Added "All" button -->
+    <!-- Date Filter Buttons -->
     <div class="mb-3" id="dateFilterGroup">
         <button class="btn btn-outline-secondary btn-sm active" onclick="setDateFilter('all')">All</button>
         <button class="btn btn-outline-secondary btn-sm" onclick="setDateFilter('today')">Today</button>
@@ -120,29 +135,42 @@
     <ul class="nav nav-tabs mb-3" id="casesTabs" role="tablist">
         <li class="nav-item flex-fill" role="presentation">
             <button class="nav-link active w-100" id="all-cases-tab" data-bs-toggle="tab" data-bs-target="#all-cases" type="button" onclick="switchTab('all-cases')">
-                All Cases 
-                <span class="badge bg-light text-dark">{{ total_cases }}</span>
-            </button>
+            All Cases 
+            <span class="badge bg-light text-dark" id="all-cases-count">{{ total_cases }}</span>
+        </button>
+        </li>
+        <li class="nav-item flex-fill" role="presentation">
+            <button class="nav-link w-100" id="active-cases-tab" data-bs-toggle="tab" data-bs-target="#active-cases" type="button" onclick="switchTab('active-cases')">
+            Active Cases
+            <span class="badge bg-info text-dark" id="active-cases-count">{{ active_cases_count }}</span>
+        </button>
         </li>
         <li class="nav-item flex-fill" role="presentation">
             <button class="nav-link w-100" id="changed-cases-tab" data-bs-toggle="tab" data-bs-target="#changed-cases" type="button" onclick="switchTab('changed-cases')">
-                Changed 
-                <span class="badge bg-warning text-dark">{{ changed_cases_count }}</span>
-            </button>
-        </li>
-        <li class="nav-item flex-fill" role="presentation">
-            <button class="nav-link w-100" id="reviewed-cases-tab" data-bs-toggle="tab" data-bs-target="#reviewed-cases" type="button" onclick="switchTab('reviewed-cases')">
-                Reviewed 
-                <span class="badge bg-success text-white">{{ reviewed_cases_count }}</span>
-            </button>
+            Changed 
+            <span class="badge bg-warning text-dark" id="changed-cases-count">{{ changed_cases_count }}</span>
+        </button>
         </li>
         <li class="nav-item flex-fill" role="presentation">
             <button class="nav-link w-100" id="upcoming-cases-tab" data-bs-toggle="tab" data-bs-target="#upcoming-cases" type="button" onclick="switchTab('upcoming-cases')">
-                Upcoming 
-                <span class="badge bg-info text-white">{{ upcoming_hearings_count }}</span>
-            </button>
+            Upcoming 
+            <span class="badge bg-info text-white" id="upcoming-cases-count">{{ upcoming_hearings_count }}</span>
+        </button>
+        </li>
+        <li class="nav-item flex-fill" role="presentation">
+            <button class="nav-link w-100" id="reviewed-cases-tab" data-bs-toggle="tab" data-bs-target="#reviewed-cases" type="button" onclick="switchTab('reviewed-cases')">
+            Reviewed 
+            <span class="badge bg-success text-white" id="reviewed-cases-count">{{ reviewed_cases_count }}</span>
+        </button>
+        </li>
+        <li class="nav-item flex-fill" role="presentation">
+            <button class="nav-link w-100" id="disposed-cases-tab" data-bs-toggle="tab" data-bs-target="#disposed-cases" type="button" onclick="switchTab('disposed-cases')">
+            Disposed 
+            <span class="badge bg-danger text-white" id="disposed-cases-count">{{ disposed_cases_count }}</span>
+        </button>
         </li>
     </ul>
+
 
     <!-- Tab Content -->
     <div class="tab-content" id="casesTabContent">
@@ -156,9 +184,9 @@
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <div class="form-check">
                                 <input class="form-check-input case-selection" type="checkbox" data-cino="{{ case.cino }}" onchange="updateCaseSelection()">
-                                <label class="form-check-label fw-bold">
+                                <!-- <label class="form-check-label fw-bold">
                                     {{ case.case_no or 'N/A' }}
-                                </label>
+                                </label> -->
                             </div>
                             {% if case.is_changed %}
                             <span class="badge bg-warning text-dark">Changed</span> {% else %}
@@ -201,11 +229,87 @@
                                         <i class="fas fa-eye me-2"></i> View
                                     </button> {% if case.is_changed %}
                                     <button class="btn btn-success btn-sm" onclick="markAsReviewed('{{ case.cino }}')">
-                                            <i class="fas fa-check me-2"></i> Mark Reviewed
-                                        </button> {% else %}
+                                        <i class="fas fa-check me-2"></i> Mark Reviewed
+                                    </button> {% else %}
                                     <button class="btn btn-outline-warning btn-sm" onclick="removeFromReviewed('{{ case.cino }}')">
-                                            <i class="fas fa-undo me-2"></i> Unmark
-                                        </button> {% endif %}
+                                        <i class="fas fa-undo me-2"></i> Unmark
+                                    </button> {% endif %}
+                                    <!-- NEW: Save Changes Button -->
+                                    <!-- <button class="btn btn-outline-primary btn-sm" onclick="saveCaseChanges('{{ case.cino }}')">
+                                        <i class="fas fa-save me-2"></i> Save Changes
+                                    </button> -->
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    {% if case.user_side %}
+                                    <span class="badge bg-info">{{ case.user_side.title() }}</span> {% else %}
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="showUserSideModal('{{ case.cino }}', '')">
+                <i class="fas fa-user-tag me-2"></i> Set Side
+            </button> {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Active Cases Tab -->
+        <div class="tab-pane fade" id="active-cases" role="tabpanel">
+            <div class="row" id="activeCasesContainer">
+                {% for case in active_cases %}
+                <div class="col-xl-4 col-lg-6 col-md-6 mb-4">
+                    <div class="card case-card" data-cino="{{ case.cino }}" data-case-no="{{ case.case_no or '' }}" data-petitioner="{{ case.petparty_name or '' }}" data-respondent="{{ case.resparty_name or '' }}" data-establishment="{{ case.establishment_name or '' }}"
+                        data-court="{{ case.court_no_desg_name or '' }}" data-type="{{ case.type_name or '' }}" data-next-date="{{ case.date_next_list or '' }}">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="form-check">
+                                <input class="form-check-input case-selection" type="checkbox" data-cino="{{ case.cino }}" onchange="updateCaseSelection()">
+                                <label class="form-check-label fw-bold">
+                                    {{ case.case_no or 'N/A' }}
+                                </label>
+                            </div>
+                            <span class="badge bg-success text-white">Active</span>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6>
+                            <div class="case-parties row mb-2">
+                                <div class="col-6">
+                                    <small class="text-muted">Petitioner:</small>
+                                    <div class="fw-medium">{{ case.petparty_name or 'N/A' }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Respondent:</small>
+                                    <div class="fw-medium">{{ case.resparty_name or 'N/A' }}</div>
+                                </div>
+                            </div>
+                            <div class="case-details mb-2">
+                                <small class="text-muted">Court:</small>
+                                <div>{{ case.court_no_desg_name or 'N/A' }}</div>
+                                <small class="text-muted mt-1">Next Hearing:</small>
+                                <div class="input-group input-group-sm">
+                                    <input type="date" class="form-control form-control-sm hearing-date-input" value="{{ case.date_next_list or '' }}" data-cino="{{ case.cino }}" onchange="updateHearingDate('{{ case.cino }}', this.value)">
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" onclick="clearHearingDate('{{ case.cino }}')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted mt-1">Type:</small>
+                                <div>{{ case.type_name or 'N/A' }}</div>
+                            </div>
+                            <div class="mb-2">
+                                <small class="text-muted">Notes:</small>
+                                <textarea class="form-control notes-input" rows="2" placeholder="Add your notes here...">{{ case.user_notes or '' }}</textarea>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="d-flex gap-2 justify-content-between">
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-primary btn-sm" onclick="openCaseDetail('{{ case.cino }}')">
+                                        <i class="fas fa-eye me-2"></i> View
+                                    </button>
+                                    <button class="btn btn-success btn-sm" onclick="markAsReviewed('{{ case.cino }}')">
+                                        <i class="fas fa-check me-2"></i> Mark Reviewed
+                                    </button>
                                 </div>
                                 <div class="d-flex align-items-center">
                                     {% if case.user_side %}
@@ -437,6 +541,76 @@
                 {% endfor %}
             </div>
         </div>
+
+        <!-- Disposed Cases Tab -->
+        <div class="tab-pane fade" id="disposed-cases" role="tabpanel">
+            <div class="row" id="disposedCasesContainer">
+                {% for case in disposed_cases %}
+                <div class="col-xl-4 col-lg-6 col-md-6 mb-4">
+                    <div class="card case-card" data-cino="{{ case.cino }}" data-case-no="{{ case.case_no or '' }}" data-petitioner="{{ case.petparty_name or '' }}" data-respondent="{{ case.resparty_name or '' }}" data-establishment="{{ case.establishment_name or '' }}"
+                        data-court="{{ case.court_no_desg_name or '' }}" data-type="{{ case.type_name or '' }}" data-next-date="{{ case.date_next_list or '' }}">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="form-check">
+                                <input class="form-check-input case-selection" type="checkbox" data-cino="{{ case.cino }}" onchange="updateCaseSelection()">
+                                <label class="form-check-label fw-bold">
+                                    {{ case.case_no or 'N/A' }}
+                                </label>
+                            </div>
+                            <span class="badge bg-danger text-white">Disposed</span>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6>
+                            <div class="case-parties row mb-2">
+                                <div class="col-6">
+                                    <small class="text-muted">Petitioner:</small>
+                                    <div class="fw-medium">{{ case.petparty_name or 'N/A' }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Respondent:</small>
+                                    <div class="fw-medium">{{ case.resparty_name or 'N/A' }}</div>
+                                </div>
+                            </div>
+                            <div class="case-details mb-2">
+                                <small class="text-muted">Court:</small>
+                                <div>{{ case.court_no_desg_name or 'N/A' }}</div>
+                                {% if case.date_of_decision %}
+                                <small class="text-muted mt-1">Date of Decision:</small>
+                                <div class="text-danger fw-medium">{{ case.date_of_decision }}</div>
+                                {% endif %}
+                                <small class="text-muted mt-1">Disposition:</small>
+                                <div>{{ case.disp_name or 'N/A' }}</div>
+                                <small class="text-muted mt-1">Type:</small>
+                                <div>{{ case.type_name or 'N/A' }}</div>
+                            </div>
+                            <div class="mb-2">
+                                <small class="text-muted">Notes:</small>
+                                <textarea class="form-control notes-input" rows="2" placeholder="Add your notes here...">{{ case.user_notes or '' }}</textarea>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="d-flex gap-2 justify-content-between">
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-primary btn-sm" onclick="openCaseDetail('{{ case.cino }}')">
+                                        <i class="fas fa-eye me-2"></i> View
+                                    </button>
+                                    <button class="btn btn-outline-info btn-sm" onclick="markAsReviewed('{{ case.cino }}')">
+                                        <i class="fas fa-archive me-2"></i> Archive
+                                    </button>
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    {% if case.user_side %}
+                                    <span class="badge bg-info">{{ case.user_side.title() }}</span> {% else %}
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="showUserSideModal('{{ case.cino }}', '')">
+                                            <i class="fas fa-user-tag me-2"></i> Set Side
+                                        </button> {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
     </div>
 </div>
 
@@ -475,7 +649,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="row">
                     <div class="col-md-6">
                         <button class="btn btn-success w-100 mb-2" onclick="executeCalendarAction('create', 'selected')">
@@ -527,20 +700,80 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
-    let selectedCases = new Set();
+    // Law Firm Case Management JavaScript - Template-Safe Version
+
+    // Global Variables
+    let originalCounts = {};
     let currentFilters = {
-        search: '',
+        text: '',
         dateFrom: '',
         dateTo: '',
-        dateFilter: 'all'
+        advanced: {}
     };
+    let selectedCases = new Set();
+    let currentTab = 'all-cases';
+    let pendingChanges = new Set();
+    let allCasesData = [];
 
-    // Initialize on page load
+    // Initialize everything when DOM is loaded
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 Initializing Law Firm Case Management System...');
+
+        // Store original counts from tab badges - TEMPLATE SAFE
+        const countElements = {
+            'all-cases': document.getElementById('all-cases-count'),
+            'active-cases': document.getElementById('active-cases-count'),
+            'changed-cases': document.getElementById('changed-cases-count'),
+            'upcoming-cases': document.getElementById('upcoming-cases-count'),
+            'reviewed-cases': document.getElementById('reviewed-cases-count'),
+            'disposed-cases': document.getElementById('disposed-cases-count')
+        };
+
+        // Safely extract counts
+        originalCounts = {};
+        Object.keys(countElements).forEach(tabId => {
+            const element = countElements[tabId];
+            originalCounts[tabId] = element ? parseInt(element.textContent || '0') : 0;
+        });
+
+        console.log('📊 Original counts stored:', originalCounts);
+
+        initializeSearch();
+        setupEventHandlers();
+        initializeSelectAllButtons();
         updateCaseSelection();
 
-        // Initialize search event listeners
+        console.log('✅ App initialized successfully');
+    });
+
+    // Initialize search data - TEMPLATE SAFE
+    function initializeSearch() {
+        console.log('🔍 Initializing search...');
+
+        const caseCards = document.querySelectorAll('.case-card');
+        allCasesData = Array.from(caseCards).map(card => {
+            const container = card.closest('.col-xl-4, .col-lg-6, .col-md-6, .col-12');
+            return {
+                element: container,
+                cino: card.getAttribute('data-cino') || '',
+                caseNo: card.getAttribute('data-case-no') || '',
+                petitioner: card.getAttribute('data-petitioner') || '',
+                respondent: card.getAttribute('data-respondent') || '',
+                establishment: card.getAttribute('data-establishment') || '',
+                nextDate: card.getAttribute('data-next-date') || '',
+                isChanged: card.getAttribute('data-changed') === 'true',
+                hasNotes: card.querySelector('.notes-input') ? card.querySelector('.notes-input').value.trim() !== '' : false
+            };
+        });
+
+        console.log(`📋 Search initialized with ${allCasesData.length} cases`);
+    }
+
+    // Setup event handlers - TEMPLATE SAFE
+    function setupEventHandlers() {
+        // Search input handlers
         const searchInput = document.getElementById('searchInput');
         const dateFromInput = document.getElementById('dateFromInput');
         const dateToInput = document.getElementById('dateToInput');
@@ -552,508 +785,586 @@
 
         if (dateFromInput) {
             dateFromInput.addEventListener('change', handleSearch);
+            dateFromInput.addEventListener('input', handleSearch);
         }
 
         if (dateToInput) {
             dateToInput.addEventListener('change', handleSearch);
+            dateToInput.addEventListener('input', handleSearch);
         }
-    });
 
-    // Update case selection tracking
-    function updateCaseSelection() {
-        selectedCases.clear();
-        document.querySelectorAll('.case-selection:checked').forEach(cb => {
-            selectedCases.add(cb.getAttribute('data-cino'));
+        // Case selection handlers
+        const caseCheckboxes = document.querySelectorAll('.case-selection');
+        caseCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                updateCaseSelection();
+            });
         });
 
-        const selectedCount = selectedCases.size;
-        document.getElementById('selectedCasesText').textContent = `${selectedCount} cases selected`;
-
-        const bulkContainer = document.getElementById('bulkActionsContainer');
-        document.getElementById('bulkMarkReviewedBtn').disabled = selectedCount === 0;
-        document.getElementById('bulkRemoveReviewedBtn').disabled = selectedCount === 0;
-        document.getElementById('bulkCalendarBtn').disabled = selectedCount === 0;
-        bulkContainer.style.display = selectedCount > 0 ? 'block' : 'none';
+        // Notes change handlers
+        document.addEventListener('input', function(event) {
+            if (event.target && event.target.classList.contains('notes-input')) {
+                const card = event.target.closest('.case-card');
+                if (card) {
+                    const cino = card.getAttribute('data-cino');
+                    if (cino) {
+                        markCaseModified(cino);
+                    }
+                }
+            }
+        });
     }
 
-    // Handle search filtering
+    // Initialize select all buttons - TEMPLATE SAFE
+    function initializeSelectAllButtons() {
+        const selectAllButtons = document.querySelectorAll('[data-toggle-select]');
+        selectAllButtons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const tabId = this.getAttribute('data-toggle-select');
+                toggleAllSelection(tabId);
+            });
+        });
+    }
+
+    // Handle search functionality - ENHANCED
     function handleSearch() {
-        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-        const dateFrom = document.getElementById('dateFromInput').value;
-        const dateTo = document.getElementById('dateToInput').value;
+        console.log('🔍 Handling search...');
 
-        currentFilters.search = searchTerm;
-        currentFilters.dateFrom = dateFrom;
-        currentFilters.dateTo = dateTo;
+        const searchInputEl = document.getElementById('searchInput');
+        const dateFromInputEl = document.getElementById('dateFromInput');
+        const dateToInputEl = document.getElementById('dateToInput');
 
+        const searchText = searchInputEl ? searchInputEl.value : '';
+        const dateFrom = dateFromInputEl ? dateFromInputEl.value : '';
+        const dateTo = dateToInputEl ? dateToInputEl.value : '';
+
+        currentFilters = {
+            text: searchText.trim(),
+            dateFrom: dateFrom,
+            dateTo: dateTo,
+            advanced: currentFilters.advanced || {}
+        };
+
+        console.log('Current filters:', currentFilters);
         filterCases();
     }
 
-    // Main filter function
+    // Main filter function - TEMPLATE SAFE AND ENHANCED
     function filterCases() {
-        const activeTab = document.querySelector('.tab-pane.active');
-        const cases = activeTab.querySelectorAll('.case-card');
+        console.log('🔍 Applying filters...');
         let visibleCount = 0;
 
-        cases.forEach(caseCard => {
-            let isVisible = true;
+        // Get all tab panes
+        const tabPanes = {
+            'all-cases': document.getElementById('all-cases'),
+            'active-cases': document.getElementById('active-cases'),
+            'changed-cases': document.getElementById('changed-cases'),
+            'upcoming-cases': document.getElementById('upcoming-cases'),
+            'reviewed-cases': document.getElementById('reviewed-cases'),
+            'disposed-cases': document.getElementById('disposed-cases')
+        };
 
-            // Search filter
-            if (currentFilters.search) {
-                const searchableText = [
-                    caseCard.getAttribute('data-cino') || '',
-                    caseCard.getAttribute('data-case-no') || '',
-                    caseCard.getAttribute('data-petitioner') || '',
-                    caseCard.getAttribute('data-respondent') || '',
-                    caseCard.getAttribute('data-establishment') || '',
-                    caseCard.getAttribute('data-court') || '',
-                    caseCard.getAttribute('data-type') || '',
-                    (caseCard.querySelector('.notes-input') && caseCard.querySelector('.notes-input').value) || ''
-                ].join(' ').toLowerCase();
+        // Apply filtering to ALL tabs
+        Object.keys(tabPanes).forEach(tabId => {
+            const tabPane = tabPanes[tabId];
+            if (!tabPane) return;
 
-                if (!searchableText.includes(currentFilters.search)) {
-                    isVisible = false;
+            const casesToFilter = tabPane.querySelectorAll('.case-card');
+            let tabVisibleCount = 0;
+
+            casesToFilter.forEach(card => {
+                const container = card.closest('.col-xl-4, .col-lg-6, .col-md-6, .col-12');
+                if (!container) return;
+
+                let matches = true;
+
+                // SAFE: Use getAttribute instead of dataset
+                const caseData = {
+                    cino: (card.getAttribute('data-cino') || '').toLowerCase(),
+                    caseNo: (card.getAttribute('data-case-no') || '').toLowerCase(),
+                    petitioner: (card.getAttribute('data-petitioner') || '').toLowerCase(),
+                    respondent: (card.getAttribute('data-respondent') || '').toLowerCase(),
+                    establishment: (card.getAttribute('data-establishment') || '').toLowerCase(),
+                    nextDate: card.getAttribute('data-next-date') || '',
+                    notes: ''
+                };
+
+                // Get notes from input field safely
+                const notesInput = card.querySelector('.notes-input');
+                if (notesInput) {
+                    caseData.notes = (notesInput.value || '').toLowerCase();
                 }
-            }
 
-            // Date range filter
-            if ((currentFilters.dateFrom || currentFilters.dateTo)) {
-                const caseDate = caseCard.getAttribute('data-next-date');
-                if (caseDate) {
+                // Text search filtering
+                if (currentFilters.text) {
+                    const searchTerm = currentFilters.text.toLowerCase();
+                    matches = matches && (
+                        caseData.cino.includes(searchTerm) ||
+                        caseData.caseNo.includes(searchTerm) ||
+                        caseData.petitioner.includes(searchTerm) ||
+                        caseData.respondent.includes(searchTerm) ||
+                        caseData.establishment.includes(searchTerm) ||
+                        caseData.notes.includes(searchTerm)
+                    );
+                }
+
+                // Date filtering with proper comparison
+                if ((currentFilters.dateFrom || currentFilters.dateTo) && caseData.nextDate) {
                     try {
-                        const caseDateObj = new Date(caseDate);
-                        if (!isNaN(caseDateObj.getTime())) {
+                        const caseDate = new Date(caseData.nextDate);
+                        if (!isNaN(caseDate.getTime())) {
                             if (currentFilters.dateFrom) {
                                 const fromDate = new Date(currentFilters.dateFrom);
-                                if (caseDateObj < fromDate) {
-                                    isVisible = false;
+                                if (caseDate < fromDate) {
+                                    matches = false;
                                 }
                             }
                             if (currentFilters.dateTo) {
                                 const toDate = new Date(currentFilters.dateTo);
                                 toDate.setHours(23, 59, 59, 999);
-                                if (caseDateObj > toDate) {
-                                    isVisible = false;
+                                if (caseDate > toDate) {
+                                    matches = false;
                                 }
                             }
                         } else {
-                            isVisible = false;
+                            if (currentFilters.dateFrom || currentFilters.dateTo) {
+                                matches = false;
+                            }
                         }
                     } catch (e) {
-                        isVisible = false;
+                        console.error('Date parsing error:', e);
+                        matches = false;
                     }
                 } else if (currentFilters.dateFrom || currentFilters.dateTo) {
-                    isVisible = false;
+                    matches = false;
                 }
-            }
 
-            // Show/hide the case
-            const col = caseCard.closest('.col-xl-4, .col-lg-6, .col-md-6');
-            if (col) {
-                col.style.display = isVisible ? 'block' : 'none';
-            }
-
-            if (isVisible) {
-                visibleCount++;
-            }
+                // Apply visibility
+                container.style.display = matches ? 'block' : 'none';
+                if (matches) {
+                    tabVisibleCount++;
+                    // Count for active tab only for search results display
+                    const activeTabPane = document.querySelector('.tab-pane.active');
+                    if (activeTabPane && activeTabPane.id === tabId) {
+                        visibleCount++;
+                    }
+                }
+            });
         });
 
-        // Update results count
-        document.getElementById('searchResultsCount').textContent = visibleCount;
+        updateSearchResultsCount(visibleCount);
+        updateToggleButtonState();
+        updateTabCounts();
     }
 
-    // Set date filter
-    function setDateFilter(period) {
-        // Remove active class from all buttons
-        document.querySelectorAll('#dateFilterGroup .btn').forEach(btn => {
-            btn.classList.remove('active');
+    // Update tab counts based on filtered results - TEMPLATE SAFE
+    function updateTabCounts() {
+        console.log('📊 Updating tab counts based on filters...');
+
+        const tabPanes = {
+            'all-cases': document.getElementById('all-cases'),
+            'active-cases': document.getElementById('active-cases'),
+            'changed-cases': document.getElementById('changed-cases'),
+            'upcoming-cases': document.getElementById('upcoming-cases'),
+            'reviewed-cases': document.getElementById('reviewed-cases'),
+            'disposed-cases': document.getElementById('disposed-cases')
+        };
+
+        Object.keys(tabPanes).forEach(tabId => {
+            const tabPane = tabPanes[tabId];
+            const countElement = document.getElementById(tabId + '-count');
+
+            if (tabPane && countElement) {
+                // Count visible cases in this tab
+                const allCasesInTab = tabPane.querySelectorAll('.case-card');
+                const visibleCases = Array.from(allCasesInTab).filter(card => {
+                    const container = card.closest('.col-xl-4, .col-lg-6, .col-md-6, .col-12');
+                    return container && container.style.display !== 'none';
+                }).length;
+
+                // Update count text
+                countElement.textContent = visibleCases;
+
+                // Update badge color based on filtering status
+                const isFiltered = currentFilters.text || currentFilters.dateFrom || currentFilters.dateTo;
+                if (isFiltered && visibleCases < originalCounts[tabId]) {
+                    countElement.className = getFilteredBadgeClass(tabId);
+                } else {
+                    countElement.className = getOriginalBadgeClass(tabId);
+                }
+
+                console.log(`Updated ${tabId}: ${visibleCases}/${originalCounts[tabId]} cases`);
+            }
+        });
+    }
+
+    // Get original badge classes for each tab
+    function getOriginalBadgeClass(tabId) {
+        const badgeClasses = {
+            'all-cases': 'badge bg-light text-dark',
+            'active-cases': 'badge bg-light text-dark',
+            'changed-cases': 'badge bg-warning text-dark',
+            'upcoming-cases': 'badge bg-info text-white',
+            'reviewed-cases': 'badge bg-success text-white',
+            'disposed-cases': 'badge bg-danger text-white'
+        };
+        return badgeClasses[tabId] || 'badge bg-light text-dark';
+    }
+
+    // Get filtered badge classes
+    function getFilteredBadgeClass(tabId) {
+        const filteredBadgeClasses = {
+            'all-cases': 'badge bg-primary text-white',
+            'active-cases': 'badge bg-primary text-white',
+            'changed-cases': 'badge bg-warning text-dark',
+            'upcoming-cases': 'badge bg-info text-white',
+            'reviewed-cases': 'badge bg-success text-white',
+            'disposed-cases': 'badge bg-danger text-white'
+        };
+        return filteredBadgeClasses[tabId] || 'badge bg-primary text-white';
+    }
+
+    // Update case selection tracking - TEMPLATE SAFE
+    function updateCaseSelection() {
+        selectedCases.clear();
+        const checkedBoxes = document.querySelectorAll('.case-selection:checked');
+        checkedBoxes.forEach(checkbox => {
+            const cino = checkbox.getAttribute('data-cino');
+            if (cino) {
+                selectedCases.add(cino);
+            }
         });
 
-        // Add active class to clicked button
-        event.target.classList.add('active');
+        updateBulkActions();
+        updateToggleButtonState();
+    }
+
+    // Update bulk actions - TEMPLATE SAFE
+    function updateBulkActions() {
+        const count = selectedCases.size;
+        const container = document.getElementById('bulkActionsContainer');
+        const text = document.getElementById('selectedCasesText');
+        const markBtn = document.getElementById('bulkMarkReviewedBtn');
+        const removeBtn = document.getElementById('bulkRemoveReviewedBtn');
+        const calendarBtn = document.getElementById('bulkCalendarBtn');
+
+        if (count > 0) {
+            showBulkMenu();
+            if (text) text.textContent = count + ' case' + (count > 1 ? 's' : '') + ' selected';
+            if (markBtn) markBtn.disabled = false;
+            if (removeBtn) removeBtn.disabled = false;
+            if (calendarBtn) calendarBtn.disabled = false;
+        } else {
+            hideBulkMenu();
+            if (text) text.textContent = '0 cases selected';
+            if (markBtn) markBtn.disabled = true;
+            if (removeBtn) removeBtn.disabled = true;
+            if (calendarBtn) calendarBtn.disabled = true;
+        }
+    }
+
+    // Show bulk menu
+    function showBulkMenu() {
+        const bulkContainer = document.getElementById('bulkActionsContainer');
+        if (bulkContainer) {
+            bulkContainer.style.display = 'block';
+            bulkContainer.classList.add('show');
+        }
+    }
+
+    // Hide bulk actions menu
+    function hideBulkMenu() {
+        const bulkContainer = document.getElementById('bulkActionsContainer');
+        if (bulkContainer) {
+            bulkContainer.style.display = 'none';
+            bulkContainer.classList.remove('show');
+        }
+    }
+
+    // Set date filter with enhanced functionality - TEMPLATE SAFE
+    function setDateFilter(period) {
+        console.log('📅 Setting date filter:', period);
 
         const today = new Date();
-        let dateFrom = '';
-        let dateTo = '';
+        const dateFromInput = document.getElementById('dateFromInput');
+        const dateToInput = document.getElementById('dateToInput');
+
+        if (!dateFromInput || !dateToInput) {
+            console.error('Date input fields not found');
+            return;
+        }
+
+        let fromDate = '';
+        let toDate = '';
 
         switch (period) {
             case 'today':
-                dateFrom = dateTo = today.toISOString().split('T')[0];
+                fromDate = toDate = today.toISOString().split('T')[0];
                 break;
             case 'thisWeek':
                 const startOfWeek = new Date(today);
                 startOfWeek.setDate(today.getDate() - today.getDay());
-                const endOfWeek = new Date(today);
-                endOfWeek.setDate(today.getDate() - today.getDay() + 6);
-                dateFrom = startOfWeek.toISOString().split('T')[0];
-                dateTo = endOfWeek.toISOString().split('T');
+                const endOfWeek = new Date(startOfWeek);
+                endOfWeek.setDate(startOfWeek.getDate() + 6);
+                fromDate = startOfWeek.toISOString().split('T');
+                toDate = endOfWeek.toISOString().split('T');
                 break;
             case 'thisMonth':
-                dateFrom = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T');
-                dateTo = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T');
+                fromDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T');
+                toDate = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T');
                 break;
             case 'nextWeek':
                 const nextWeekStart = new Date(today);
                 nextWeekStart.setDate(today.getDate() + (7 - today.getDay()));
                 const nextWeekEnd = new Date(nextWeekStart);
                 nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
-                dateFrom = nextWeekStart.toISOString().split('T')[0];
-                dateTo = nextWeekEnd.toISOString().split('T');
+                fromDate = nextWeekStart.toISOString().split('T');
+                toDate = nextWeekEnd.toISOString().split('T');
                 break;
             case 'all':
+                fromDate = toDate = '';
+                break;
             default:
-                dateFrom = dateTo = '';
+                fromDate = toDate = '';
                 break;
         }
 
-        document.getElementById('dateFromInput').value = dateFrom;
-        document.getElementById('dateToInput').value = dateTo;
+        dateFromInput.value = fromDate;
+        dateToInput.value = toDate;
+        currentFilters.dateFrom = fromDate;
+        currentFilters.dateTo = toDate;
 
-        currentFilters.dateFilter = period;
-        currentFilters.dateFrom = dateFrom;
-        currentFilters.dateTo = dateTo;
-
-        filterCases();
-    }
-
-    // Clear all filters
-    function clearAllFilters() {
-        document.getElementById('searchInput').value = '';
-        document.getElementById('dateFromInput').value = '';
-        document.getElementById('dateToInput').value = '';
-
-        // Reset date filter buttons
-        document.querySelectorAll('#dateFilterGroup .btn').forEach(btn => {
+        // Update button states
+        const dateFilterButtons = document.querySelectorAll('#dateFilterGroup .btn');
+        dateFilterButtons.forEach(btn => {
             btn.classList.remove('active');
         });
 
-        // Activate "All" button
-        document.querySelector('[onclick="setDateFilter(\'all\')"]').classList.add('active');
+        // Find and activate the correct button
+        const targetButton = document.querySelector('[onclick*="' + period + '"]');
+        if (targetButton) {
+            targetButton.classList.add('active');
+        }
 
-        currentFilters = {
-            search: '',
-            dateFrom: '',
-            dateTo: '',
-            dateFilter: 'all'
-        };
-
+        console.log('Date filter set: ' + fromDate + ' to ' + toDate);
         filterCases();
     }
 
-    // Switch tab
+    // Clear all filters and reset counts
+    function clearAllFilters() {
+        console.log('🧹 Clearing all filters...');
+
+        const searchInput = document.getElementById('searchInput');
+        const dateFromInput = document.getElementById('dateFromInput');
+        const dateToInput = document.getElementById('dateToInput');
+
+        if (searchInput) searchInput.value = '';
+        if (dateFromInput) dateFromInput.value = '';
+        if (dateToInput) dateToInput.value = '';
+
+        // Reset date filter buttons
+        const dateFilterButtons = document.querySelectorAll('#dateFilterGroup .btn');
+        dateFilterButtons.forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        currentFilters = {
+            text: '',
+            dateFrom: '',
+            dateTo: '',
+            advanced: {}
+        };
+
+        // Show all cases and update counts
+        const allCaseCards = document.querySelectorAll('.case-card');
+        allCaseCards.forEach(card => {
+            const container = card.closest('.col-xl-4, .col-lg-6, .col-md-6, .col-12');
+            if (container) {
+                container.style.display = 'block';
+            }
+        });
+
+        resetTabCounts();
+        updateToggleButtonState();
+
+        const activeTabPane = document.querySelector('.tab-pane.active');
+        const activeTabCases = activeTabPane ? activeTabPane.querySelectorAll('.case-card') : [];
+        updateSearchResultsCount(activeTabCases.length);
+
+        console.log('✅ All filters cleared and tab counts reset');
+    }
+
+    // Reset tab counts to original values
+    function resetTabCounts() {
+        console.log('🔄 Resetting tab counts to original values...');
+        Object.keys(originalCounts).forEach(tabId => {
+            const countElement = document.getElementById(tabId + '-count');
+            if (countElement) {
+                countElement.textContent = originalCounts[tabId];
+                countElement.className = getOriginalBadgeClass(tabId);
+                console.log('Reset ' + tabId + ' count to ' + originalCounts[tabId]);
+            }
+        });
+    }
+
+    // Toggle all selection - TEMPLATE SAFE
+    function toggleAllSelection(tabId) {
+        console.log('🔄 Toggling selection for tab:', tabId);
+        const activeTabPane = document.querySelector('.tab-pane.active');
+        if (!activeTabPane) return;
+
+        const allCheckboxes = activeTabPane.querySelectorAll('.case-selection');
+        const visibleCheckboxes = Array.from(allCheckboxes).filter(checkbox => {
+            const container = checkbox.closest('.col-xl-4, .col-lg-6, .col-md-6, .col-12');
+            return container && container.style.display !== 'none';
+        });
+
+        if (visibleCheckboxes.length === 0) return;
+
+        const allSelected = visibleCheckboxes.every(checkbox => checkbox.checked);
+        const toggleButton = document.querySelector('[data-toggle-select="' + tabId + '"] span');
+
+        if (allSelected) {
+            // Deselect all
+            visibleCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+                const cino = checkbox.getAttribute('data-cino');
+                if (cino) {
+                    selectedCases.delete(cino);
+                }
+            });
+            if (toggleButton) {
+                toggleButton.textContent = 'Select All';
+                toggleButton.parentElement.classList.remove('btn-primary');
+                toggleButton.parentElement.classList.add('btn-outline-primary');
+            }
+            hideBulkMenu();
+        } else {
+            // Select all
+            visibleCheckboxes.forEach(checkbox => {
+                checkbox.checked = true;
+                const cino = checkbox.getAttribute('data-cino');
+                if (cino) {
+                    selectedCases.add(cino);
+                }
+            });
+            if (toggleButton) {
+                toggleButton.textContent = 'Deselect All';
+                toggleButton.parentElement.classList.remove('btn-outline-primary');
+                toggleButton.parentElement.classList.add('btn-primary');
+            }
+            showBulkMenu();
+        }
+
+        updateBulkActions();
+        console.log((allSelected ? 'Deselected' : 'Selected') + ' ' + visibleCheckboxes.length + ' cases');
+    }
+
+    // Update toggle button state - TEMPLATE SAFE
+    function updateToggleButtonState() {
+        const activeTabPane = document.querySelector('.tab-pane.active');
+        if (!activeTabPane) return;
+
+        const tabId = activeTabPane.id;
+        const toggleButton = document.querySelector('[data-toggle-select="' + tabId + '"] span');
+
+        if (toggleButton) {
+            const allCheckboxes = activeTabPane.querySelectorAll('.case-selection');
+            const visibleCheckboxes = Array.from(allCheckboxes).filter(checkbox => {
+                const container = checkbox.closest('.col-xl-4, .col-lg-6, .col-md-6, .col-12');
+                return container && container.style.display !== 'none';
+            });
+
+            const checkedCount = visibleCheckboxes.filter(cb => cb.checked).length;
+            const allSelected = visibleCheckboxes.length > 0 && checkedCount === visibleCheckboxes.length;
+
+            toggleButton.textContent = allSelected ? 'Deselect All' : 'Select All';
+            const buttonElement = toggleButton.parentElement;
+            if (allSelected) {
+                buttonElement.classList.remove('btn-outline-primary');
+                buttonElement.classList.add('btn-primary');
+            } else {
+                buttonElement.classList.remove('btn-primary');
+                buttonElement.classList.add('btn-outline-primary');
+            }
+        }
+    }
+
+    // Update search results count
+    function updateSearchResultsCount(count) {
+        const countElement = document.getElementById('searchResultsCount');
+        if (countElement) {
+            countElement.textContent = count;
+            countElement.className = count > 0 ? 'badge bg-primary' : 'badge bg-warning';
+        }
+    }
+
+    // Tab switching functionality
     function switchTab(tabName) {
-        // Apply filters to new tab after a short delay to let Bootstrap handle tab switching
-        setTimeout(() => {
+        console.log('🔄 Switching to tab:', tabName);
+        currentTab = tabName;
+        selectedCases.clear();
+        hideBulkMenu();
+
+        const selectAllSpans = document.querySelectorAll('[data-toggle-select] span');
+        selectAllSpans.forEach(span => {
+            span.textContent = 'Select All';
+            span.parentElement.classList.remove('btn-primary');
+            span.parentElement.classList.add('btn-outline-primary');
+        });
+
+        // Apply filters to new tab after a short delay
+        setTimeout(function() {
             filterCases();
             updateCaseSelection();
+            updateToggleButtonState();
         }, 100);
     }
 
-    // Global select all
-    function handleGlobalSelectAll() {
-        const activeTab = document.querySelector('.tab-pane.active');
-        const visibleCases = Array.from(activeTab.querySelectorAll('.case-card')).filter(card => {
-            const col = card.closest('.col-xl-4, .col-lg-6, .col-md-6');
-            return col && col.style.display !== 'none';
-        });
-
-        const visibleCheckboxes = visibleCases.map(card => card.querySelector('.case-selection'));
-        const allChecked = visibleCheckboxes.every(cb => cb.checked);
-
-        visibleCheckboxes.forEach(cb => {
-            cb.checked = !allChecked;
-        });
-
-        document.getElementById('globalSelectAllText').textContent = allChecked ? 'Select All' : 'Deselect All';
-        updateCaseSelection();
+    // Mark case as modified
+    function markCaseModified(cino) {
+        pendingChanges.add(cino);
     }
 
-    // Modal functions
-    function validateDeletionForm() {
-        const checkbox = document.getElementById('confirmDeleteDataCheck');
-        const textInput = document.getElementById('confirmationText');
-        const deleteButton = document.getElementById('confirmDeleteAllBtn');
-        deleteButton.disabled = !(checkbox.checked && textInput.value.trim() === 'DELETE_ALL_FOREVER');
-    }
-
-    function executeDeleteAll() {
-        const confirmation = document.getElementById('confirmationText').value.trim();
-
-        if (confirmation !== 'DELETE_ALL_FOREVER') {
-            showAlert('Please type "DELETE_ALL_FOREVER" to confirm', 'danger');
-            return;
-        }
-
-        const deleteButton = document.getElementById('confirmDeleteAllBtn');
-        const originalText = deleteButton.innerHTML;
-
-        deleteButton.disabled = true;
-        deleteButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deleting...';
-
-        fetch('/delete_all_cases_and_calendar', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    confirmation: 'DELETE_ALL_FOREVER'
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-
-                showAlert('All cases and calendar events deleted successfully!', 'success');
-
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('deleteAllModal'));
-                if (modal) modal.hide();
-
-                // Redirect to upload page after successful deletion
-                setTimeout(() => {
-                    window.location.href = '/upload_page';
-                }, 2000);
-            })
-            .catch(error => {
-                console.error('Delete all error:', error);
-                showAlert('Failed to delete all cases: ' + error.message, 'danger');
-            })
-            .finally(() => {
-                deleteButton.disabled = false;
-                deleteButton.innerHTML = originalText;
-            });
-    }
-
-    function showDeleteAllModal() {
-        const modal = new bootstrap.Modal(document.getElementById('deleteAllModal'));
-        modal.show();
-    }
-
-    function showCalendarActionModal() {
-        const modal = new bootstrap.Modal(document.getElementById('calendarActionModal'));
-        const selectedCount = selectedCases.size;
-        const allCount = document.querySelectorAll('.tab-pane.active .case-card').length;
-        document.getElementById('modalSelectedCount').textContent = selectedCount;
-        document.getElementById('modalAllCount').textContent = allCount;
-        modal.show();
-    }
-
-    // Case action functions (placeholders)
+    // Case action functions
     function openCaseDetail(cino) {
-        window.location.href = `/case/${cino}`;
+        window.location.href = '/case/' + cino;
     }
 
-    function markAsReviewed(cino) {
-        alert(`Mark case ${cino} as reviewed`);
-    }
-
-    function removeFromReviewed(cino) {
-        alert(`Remove case ${cino} from reviewed`);
-    }
-
-    function updateHearingDate(cino, date) {
-        console.log(`Update hearing date for ${cino} to ${date}`);
-    }
-
-    function clearHearingDate(cino) {
-        const input = document.querySelector(`input[data-cino="${cino}"]`);
-        if (input) input.value = '';
-    }
-
-    function executeBulkAction(action) {
-        alert(`Execute bulk action: ${action} on ${selectedCases.size} cases`);
-    }
-
-    function extractCaseDataFromCard(caseCard) {
-        const notesInput = caseCard.querySelector('.notes-input');
-        const hearingDateInput = caseCard.querySelector('.hearing-date-input');
-
-        return {
-            cino: caseCard.getAttribute('data-cino') || '',
-            case_no: caseCard.getAttribute('data-case-no') || '',
-            petparty_name: caseCard.getAttribute('data-petitioner') || '',
-            resparty_name: caseCard.getAttribute('data-respondent') || '',
-            establishment_name: caseCard.getAttribute('data-establishment') || '',
-            state_name: caseCard.getAttribute('data-state') || '',
-            district_name: caseCard.getAttribute('data-district') || '',
-            court_no_desg_name: caseCard.getAttribute('data-court') || '',
-            type_name: caseCard.getAttribute('data-type') || '',
-            date_next_list: hearingDateInput ? hearingDateInput.value : (caseCard.getAttribute('data-next-date') || ''),
-            purpose_name: caseCard.getAttribute('data-purpose') || '',
-            user_notes: notesInput ? notesInput.value : '',
-            user_side: caseCard.getAttribute('data-user-side') || ''
-        };
-    }
-
-    function executeCalendarAction(action, scope) {
-        console.log(`Executing calendar action: ${action} for ${scope}`);
-
-        // Close the modal first
-        const modal = bootstrap.Modal.getInstance(document.getElementById('calendarActionModal'));
-        if (modal) modal.hide();
-
-        if (action === 'create') {
-            // Prepare cases data based on scope
-            let casesToProcess = [];
-            const activeTab = document.querySelector('.tab-pane.active');
-
-            if (scope === 'selected') {
-                // Get selected cases
-                const selectedCheckboxes = document.querySelectorAll('.case-selection:checked');
-                selectedCheckboxes.forEach(checkbox => {
-                    const caseCard = checkbox.closest('.case-card');
-                    if (caseCard) {
-                        casesToProcess.push(extractCaseDataFromCard(caseCard));
-                    }
-                });
-
-                if (casesToProcess.length === 0) {
-                    showAlert('No cases selected for calendar creation', 'warning');
-                    return;
-                }
-            } else if (scope === 'all') {
-                // Get all visible cases in current tab
-                const visibleCases = activeTab.querySelectorAll('.case-card');
-                visibleCases.forEach(caseCard => {
-                    const container = caseCard.closest('.col-xl-4, .col-lg-6, .col-md-6');
-                    if (container && container.style.display !== 'none') {
-                        casesToProcess.push(extractCaseDataFromCard(caseCard));
-                    }
-                });
-            }
-
-            if (casesToProcess.length === 0) {
-                showAlert('No cases available for calendar creation', 'warning');
-                return;
-            }
-
-            // Show progress
-            showAlert(`Creating calendar events for ${casesToProcess.length} cases...`, 'info');
-
-            // Call the create calendar API
-            fetch('/create_calendar_events', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        filter: scope === 'selected' ? 'selected_cases_only' : 'current_tab_all',
-                        scope: scope,
-                        cases: casesToProcess
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
-
-                    const message = `Calendar events created successfully! ${data.created} created, ${data.updated || 0} updated`;
-                    showAlert(message, 'success');
-                })
-                .catch(error => {
-                    console.error('Calendar creation error:', error);
-                    showAlert('Failed to create calendar events: ' + error.message, 'danger');
-                });
-
-        } else if (action === 'delete') {
-            // Handle calendar deletion
-            let confirmMessage = '';
-            if (scope === 'selected') {
-                const selectedCount = document.querySelectorAll('.case-selection:checked').length;
-                if (selectedCount === 0) {
-                    showAlert('No cases selected for calendar deletion', 'warning');
-                    return;
-                }
-                confirmMessage = `Delete calendar events for ${selectedCount} selected cases?`;
-            } else {
-                const allCount = document.querySelectorAll('.tab-pane.active .case-card').length;
-                confirmMessage = `Delete calendar events for all ${allCount} cases in current tab?`;
-            }
-
-            showConfirm(confirmMessage, 'warning').then(confirmed => {
-                if (!confirmed) return;
-
-                if (scope === 'selected') {
-                    // Get selected cases for deletion
-                    let casesToDelete = [];
-                    const selectedCheckboxes = document.querySelectorAll('.case-selection:checked');
-                    selectedCheckboxes.forEach(checkbox => {
-                        const caseCard = checkbox.closest('.case-card');
-                        if (caseCard) {
-                            casesToDelete.push(extractCaseDataFromCard(caseCard));
-                        }
-                    });
-
-                    fetch('/delete_selected_calendar_events', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                cases: casesToDelete
-                            })
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.error) {
-                                throw new Error(data.error);
-                            }
-                            showAlert(`Deleted ${data.deleted} calendar events`, 'success');
-                        })
-                        .catch(error => {
-                            showAlert('Failed to delete calendar events: ' + error.message, 'danger');
-                        });
-                } else {
-                    // Delete all calendar events
-                    fetch('/delete_calendar_events', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                method: 'auto'
-                            })
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.error) {
-                                throw new Error(data.error);
-                            }
-                            showAlert(`Deleted ${data.deleted} calendar events`, 'success');
-                        })
-                        .catch(error => {
-                            showAlert('Failed to delete calendar events: ' + error.message, 'danger');
-                        });
-                }
-            });
-        }
-    }
-
+    // Utility functions
     function showAlert(message, type) {
-        // If you have a custom alert system, use it
-        if (typeof window.showAlert === 'function') {
-            return window.showAlert(message, type);
-        }
+        type = type || 'info';
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-' + type + ' alert-dismissible fade show position-fixed';
+        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+        alertDiv.innerHTML = message + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
 
-        // Fallback to console and basic alert
-        console.log(`[${type.toUpperCase()}] ${message}`);
-        alert(message);
+        document.body.appendChild(alertDiv);
+
+        setTimeout(function() {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 5000);
     }
 
-    // Custom confirm function
-    function showConfirm(message, type) {
-        // If you have a custom confirm system, use it
-        if (typeof window.showConfirm === 'function') {
-            return window.showConfirm(message, type);
-        }
-
-        // Fallback to standard confirm
-        return Promise.resolve(confirm(message));
+    function hasActiveFilters() {
+        return !!(currentFilters.text || currentFilters.dateFrom || currentFilters.dateTo);
     }
+
+    // Global functions for template use
+    window.setDateFilter = setDateFilter;
+    window.clearAllFilters = clearAllFilters;
+    window.switchTab = switchTab;
+    window.openCaseDetail = openCaseDetail;
+    window.toggleAllSelection = toggleAllSelection;
+    window.showAlert = showAlert;
+
+    console.log('📋 Law Firm Case Management System loaded successfully');
 </script>
+
 
 <style>
     .nav-tabs .nav-item {
@@ -1076,6 +1387,15 @@
     
     #bulkActionsContainer {
         border-left: 4px solid var(--bs-primary);
+    }
+    
+    .nav-tabs .badge {
+        transition: all 0.3s ease;
+    }
+    
+    .nav-tabs .badge.filtered {
+        background-color: #ffc107 !important;
+        color: #000 !important;
     }
 </style>
 {% endblock %}

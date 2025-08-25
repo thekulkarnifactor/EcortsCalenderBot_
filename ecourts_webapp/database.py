@@ -38,7 +38,8 @@ class CaseDatabase:
             raw_data TEXT,
             user_side TEXT DEFAULT '',
             reg_no INTEGER,
-            reg_year INTEGER
+            reg_year INTEGER,
+            date_of_decision TEXT DEFAULT NULL
         )
         """)
 
@@ -47,12 +48,19 @@ class CaseDatabase:
             cursor.execute("ALTER TABLE cases ADD COLUMN user_side TEXT DEFAULT ''")
         except sqlite3.OperationalError:
             pass # Column already exists
+
         try:
             cursor.execute("ALTER TABLE cases ADD COLUMN reg_no INTEGER")
         except sqlite3.OperationalError:
             pass
+
         try:
             cursor.execute("ALTER TABLE cases ADD COLUMN reg_year INTEGER")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE cases ADD COLUMN date_of_decision TEXT DEFAULT NULL")
         except sqlite3.OperationalError:
             pass
 
@@ -68,7 +76,7 @@ class CaseDatabase:
             FOREIGN KEY (cino) REFERENCES cases (cino)
         )
         """)
-        
+
         conn.commit()
         conn.close()
 
@@ -184,36 +192,52 @@ class CaseDatabase:
         return changes
 
     def _update_case_with_changes(self, cursor, cino: str, case_data: dict, changes: List[Dict]):
-        """Update case and record changes - Mark as pending review"""
-        # Update main case record with proper None handling
+        """Update case and record changes - FIXED: Use consistent data extraction"""
+        
+        # Use the same field extraction logic
+        def get_field_value(field_name, case_data):
+            outer_value = case_data.get(field_name, '')
+            if not outer_value and 'raw_data' in case_data:
+                try:
+                    raw_data_str = case_data.get('raw_data', '{}')
+                    if isinstance(raw_data_str, str):
+                        raw_data = json.loads(raw_data_str)
+                        inner_value = raw_data.get(field_name, '')
+                        return inner_value if inner_value else outer_value
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            return outer_value if outer_value else ''
+        
         cursor.execute("""
-        UPDATE cases SET
+            UPDATE cases SET
             case_no=?, petparty_name=?, resparty_name=?, establishment_name=?,
             state_name=?, district_name=?, date_next_list=?, date_last_list=?,
             purpose_name=?, type_name=?, court_no_desg_name=?, disp_name=?,
             is_changed=TRUE, change_summary=?, raw_data=?, updated_at=CURRENT_TIMESTAMP,
-            reg_no=?, reg_year=?
-        WHERE cino=?
+            reg_no=?, reg_year=?, user_notes=?, user_side=?
+            WHERE cino=?
         """, (
-            case_data.get('case_no') or '',
-            case_data.get('petparty_name') or '',
-            case_data.get('resparty_name') or '',
-            case_data.get('establishment_name') or '',
-            case_data.get('state_name') or '',
-            case_data.get('district_name') or '',
-            case_data.get('date_next_list') or '',
-            case_data.get('date_last_list') or '',
-            case_data.get('purpose_name') or '',
-            case_data.get('type_name') or '',
-            case_data.get('court_no_desg_name') or '',
-            case_data.get('disp_name') or '',
+            get_field_value('case_no', case_data),
+            get_field_value('petparty_name', case_data),
+            get_field_value('resparty_name', case_data),
+            get_field_value('establishment_name', case_data),
+            get_field_value('state_name', case_data),
+            get_field_value('district_name', case_data),
+            get_field_value('date_next_list', case_data),
+            get_field_value('date_last_list', case_data),
+            get_field_value('purpose_name', case_data),
+            get_field_value('type_name', case_data),
+            get_field_value('court_no_desg_name', case_data),
+            get_field_value('disp_name', case_data),
             json.dumps([f"{c['field']}: {c['old_value']} → {c['new_value']}" for c in changes]),
             json.dumps(case_data),
             case_data.get('reg_no'),
             case_data.get('reg_year'),
+            get_field_value('user_notes', case_data),  # FIXED
+            get_field_value('user_side', case_data),   # FIXED
             cino
         ))
-        
+
         # Record individual changes
         for change in changes:
             cursor.execute("""
@@ -221,34 +245,91 @@ class CaseDatabase:
             VALUES (?, ?, ?, ?)
             """, (cino, change['field'], change['old_value'], change['new_value']))
 
+    
     def _insert_new_case(self, cursor, case_data: dict):
-        """Insert new case record - FIXED: New cases are NOT marked as changed"""
+        """Insert new case record - FIXED: Handle nested JSON properly for ALL fields"""
+        
+        cino = case_data.get('cino', '').strip()
+        print(f"🔍 Processing case: {cino}")
+        
+        # FIXED: Extract data with proper priority handling
+        def get_field_value(field_name, case_data):
+            """Get field value with fallback logic"""
+            # Priority 1: Direct field from outer JSON
+            outer_value = case_data.get(field_name, '')
+            
+            # Priority 2: If empty, try from raw_data (parsed)
+            if not outer_value and 'raw_data' in case_data:
+                try:
+                    raw_data_str = case_data.get('raw_data', '{}')
+                    if isinstance(raw_data_str, str):
+                        raw_data = json.loads(raw_data_str)
+                        inner_value = raw_data.get(field_name, '')
+                        return inner_value if inner_value else outer_value
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            
+            return outer_value if outer_value else ''
+        
+        # FIXED: Extract all fields using consistent logic
+        extracted_data = {
+            'cino': get_field_value('cino', case_data),
+            'case_no': get_field_value('case_no', case_data),
+            'petparty_name': get_field_value('petparty_name', case_data),
+            'resparty_name': get_field_value('resparty_name', case_data),
+            'establishment_name': get_field_value('establishment_name', case_data),
+            'state_name': get_field_value('state_name', case_data),
+            'district_name': get_field_value('district_name', case_data),
+            'date_next_list': get_field_value('date_next_list', case_data),
+            'date_last_list': get_field_value('date_last_list', case_data),
+            'purpose_name': get_field_value('purpose_name', case_data),
+            'type_name': get_field_value('type_name', case_data),
+            'court_no_desg_name': get_field_value('court_no_desg_name', case_data),
+            'disp_name': get_field_value('disp_name', case_data),
+            'user_notes': get_field_value('user_notes', case_data),
+            'user_side': get_field_value('user_side', case_data),
+            'reg_no': case_data.get('reg_no') or None,
+            'reg_year': case_data.get('reg_year') or None,
+            'date_of_decision': get_field_value('date_of_decision', case_data)
+        }
+        
+        # Debug logging
+        print(f"📝 Extracted data for {cino}:")
+        print(f"   user_notes: '{extracted_data['user_notes']}'")
+        print(f"   petparty_name: '{extracted_data['petparty_name'][:50]}...'")
+        print(f"   case_no: '{extracted_data['case_no']}'")
+        
         cursor.execute("""
-        INSERT INTO cases (
-            cino, case_no, petparty_name, resparty_name, establishment_name,
-            state_name, district_name, date_next_list, date_last_list,
-            purpose_name, type_name, court_no_desg_name, disp_name, raw_data,
-            reg_no, reg_year, is_changed
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO cases (
+                cino, case_no, petparty_name, resparty_name, establishment_name,
+                state_name, district_name, date_next_list, date_last_list,
+                purpose_name, type_name, court_no_desg_name, disp_name, raw_data,
+                reg_no, reg_year, is_changed, date_of_decision, user_notes, user_side
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            case_data.get('cino') or '',
-            case_data.get('case_no') or '',
-            case_data.get('petparty_name') or '',
-            case_data.get('resparty_name') or '',
-            case_data.get('establishment_name') or '',
-            case_data.get('state_name') or '',
-            case_data.get('district_name') or '',
-            case_data.get('date_next_list') or '',
-            case_data.get('date_last_list') or '',
-            case_data.get('purpose_name') or '',
-            case_data.get('type_name') or '',
-            case_data.get('court_no_desg_name') or '',
-            case_data.get('disp_name') or '',
-            json.dumps(case_data),
-            case_data.get('reg_no'),
-            case_data.get('reg_year'),
-            False # FIXED: New cases are NOT pending review (is_changed=FALSE)
+            extracted_data['cino'],
+            extracted_data['case_no'],
+            extracted_data['petparty_name'],
+            extracted_data['resparty_name'],
+            extracted_data['establishment_name'],
+            extracted_data['state_name'],
+            extracted_data['district_name'],
+            extracted_data['date_next_list'],
+            extracted_data['date_last_list'],
+            extracted_data['purpose_name'],
+            extracted_data['type_name'],
+            extracted_data['court_no_desg_name'],
+            extracted_data['disp_name'],
+            json.dumps(case_data),  # Store original for reference
+            extracted_data['reg_no'],
+            extracted_data['reg_year'],
+            False,  # is_changed
+            extracted_data['date_of_decision'],
+            extracted_data['user_notes'],  # FIXED: Use extracted notes
+            extracted_data['user_side']    # FIXED: Use extracted user_side
         ))
+        
+        print(f"✅ Case {cino} inserted with correct data")
 
     def create_new_case(self, case_data: dict) -> tuple[bool, str]:
         """Create a new case manually"""
@@ -551,8 +632,9 @@ class CaseDatabase:
             'establishment_name', 'state_name', 'district_name', 'date_next_list',
             'date_last_list', 'purpose_name', 'type_name', 'court_no_desg_name',
             'disp_name', 'updated_at', 'user_notes', 'is_changed', 'change_summary',
-            'raw_data', 'user_side', 'reg_no', 'reg_year'
+            'raw_data', 'user_side', 'reg_no', 'reg_year', 'date_of_decision'
         ]
+
         
         result = dict(zip(columns, row))
         result['is_changed'] = bool(result['is_changed'])
@@ -883,3 +965,79 @@ class CaseDatabase:
         notes = [row[0] for row in cursor.fetchall()]
         conn.close()
         return notes
+    
+    # function to get active cases and dispose cases using date_of_decision
+    def get_active_and_disposed_cases(self) -> Dict[str, List[Dict]]:
+        """Get active cases and disposed cases based on date_of_decision"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Active cases: date_of_decision is NULL or empty
+            cursor.execute("""
+            SELECT * FROM cases
+            WHERE (date_of_decision IS NULL OR date_of_decision = '')
+            ORDER BY updated_at DESC
+            """)
+            active_cases = cursor.fetchall()
+            
+            # Disposed cases: date_of_decision is set
+            cursor.execute("""
+            SELECT * FROM cases
+            WHERE date_of_decision IS NOT NULL AND date_of_decision != ''
+            ORDER BY date_of_decision DESC
+            """)
+            disposed_cases = cursor.fetchall()
+            
+            conn.close()
+            
+            return {
+                'active_cases': [self._row_to_dict(case) for case in active_cases],
+                'disposed_cases': [self._row_to_dict(case) for case in disposed_cases]
+            }
+            
+        except Exception as e:
+            print(f"Error getting active and disposed cases: {e}")
+            return {
+                'active_cases': [],
+                'disposed_cases': [],
+                'error': str(e)
+            }
+
+    def update_case_notes_and_mark_reviewed(self, cino: str, notes: str) -> bool:
+        """Update case notes and mark as reviewed in single transaction"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Single transaction for both operations
+            cursor.execute("""
+                UPDATE cases 
+                SET user_notes = ?, 
+                    is_changed = FALSE, 
+                    updated_at = CURRENT_TIMESTAMP 
+                WHERE cino = ?
+            """, (notes, cino))
+            
+            # Record both actions in history
+            cursor.execute("""
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'notes_updated_and_reviewed', '', ?)
+            """, (cino, notes))
+            
+            # Commit single transaction
+            conn.commit()
+            success = cursor.rowcount > 0
+            conn.close()
+            
+            if success:
+                print(f"✅ Updated notes and marked case {cino} as reviewed")
+            
+            return success
+            
+        except Exception as e:
+            print(f"❌ Error updating case notes and marking reviewed: {e}")
+            if 'conn' in locals():
+                conn.rollback()
+                conn.close()
+            return False

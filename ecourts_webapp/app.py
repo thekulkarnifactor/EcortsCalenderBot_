@@ -4,6 +4,7 @@ import secrets
 import time
 from datetime import datetime
 from database import CaseDatabase
+import sqlite3
 from calendar_utils import (
     get_court_events_for_deletion,
     delete_court_events_by_summary_or_description,
@@ -11,6 +12,7 @@ from calendar_utils import (
     complete_system_cleanup,
     clear_local_case_files
 )
+
 
 app = Flask(__name__)
 app.static_folder = 'static'
@@ -29,6 +31,24 @@ def get_or_create_secret_key():
         print("✅ Generated new secret.key file")
         return secret_key
 
+def get_upcoming_cases(cases):
+    """Helper function to get upcoming cases"""
+    upcoming_cases = []
+    try:
+        today = datetime.now().date()
+        for case in cases:
+            if case.get('date_next_list'):
+                try:
+                    hearing_date = datetime.strptime(case['date_next_list'], '%Y-%m-%d').date()
+                    if hearing_date >= today:
+                        upcoming_cases.append(case)
+                except ValueError:
+                    continue
+        upcoming_cases.sort(key=lambda x: x.get('date_next_list', ''))
+    except Exception as e:
+        print(f"⚠️ Error processing upcoming cases: {e}")
+    return upcoming_cases
+
 app.config['SECRET_KEY'] = get_or_create_secret_key()
 
 # Initialize database
@@ -41,95 +61,66 @@ def index():
     """Main entry point - redirect based on data availability"""
     try:
         cases = db.get_all_cases()
-        if not cases:
-            return redirect(url_for('upload_page'))
-        else:
-            return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard') if cases else url_for('upload_page'))
     except Exception as e:
         print(f"Index error: {e}")
         return redirect(url_for('upload_page'))
 
 @app.route('/dashboard')
 def dashboard():
-    """Law Firm Case Management Dashboard - Updated"""
+    """Law Firm Case Management Dashboard - Clean Version"""
     try:
         print("🏠 Accessing dashboard...")
+        
+        # Get all cases first
         cases = db.get_all_cases()
-        # Sort by next hearing date descending
-        cases.sort(key=lambda x: x.get('date_next_list', ''), reverse=True)  
+        # sort cases by date_next_list desc, treating 'Not set' or None as far future
+        cases.sort(key=lambda x: (x.get('date_next_list') in [None, '', 'Not set'], x.get('date_next_list')), reverse=True)
 
-        print(f"📊 Retrieved {len(cases)} total cases")
-
-        if not cases or len(cases) == 0:
+        if not cases:
             print("⚠️ No cases found, redirecting to upload page")
             return redirect(url_for('upload_page'))
-
+        
+        # Get active and disposed cases using the new database method
+        active_disposed = db.get_active_and_disposed_cases()
+        active_cases = active_disposed.get('active_cases', [])
+        disposed_cases = active_disposed.get('disposed_cases', [])
+        
         # Get different case categories
-        try:
-            changed_cases = db.get_changed_cases()  # New method
-            print(f"⚠️ Changed cases: {len(changed_cases)}")
-        except Exception as e:
-            print(f"⚠️ Error getting changed cases: {e}")
-            changed_cases = [case for case in cases if case.get('is_changed', False)]
-
-        try:
-            reviewed_cases = db.get_reviewed_cases_with_notes()
-            print(f"✅ Reviewed cases: {len(reviewed_cases)}")
-        except Exception as e:
-            print(f"⚠️ Error getting reviewed cases: {e}")
-            reviewed_cases = []
-
+        changed_cases = db.get_changed_cases()
+        reviewed_cases = db.get_reviewed_cases_with_notes()
+        
         # Get upcoming cases
-        upcoming_cases = []
-        try:
-            from datetime import datetime
-            today = datetime.now().date()
-            for case in cases:
-                if case.get('date_next_list'):
-                    try:
-                        hearing_date = datetime.strptime(case['date_next_list'], '%Y-%m-%d').date()
-                        if hearing_date >= today:
-                            upcoming_cases.append(case)
-                    except ValueError:
-                        continue
-            upcoming_cases.sort(key=lambda x: x.get('date_next_list', ''))
-            print(f"📅 Upcoming cases: {len(upcoming_cases)}")
-        except Exception as e:
-            print(f"⚠️ Error processing upcoming cases: {e}")
-            upcoming_cases = []
-
+        upcoming_cases = get_upcoming_cases(cases)
+        
         # Get counts
-        try:
-            counts = db.get_case_counts()
-            print(f"📊 Counts retrieved: {counts}")
-        except Exception as e:
-            print(f"⚠️ Error getting counts: {e}")
-            counts = {
-                'total_cases': len(cases),
-                'changed_cases': len(changed_cases),
-                'reviewed_cases': len(reviewed_cases),
-                'upcoming_hearings': len(upcoming_cases)
-            }
-
-        print("🎯 Rendering dashboard template...")
+        counts = db.get_case_counts()
+        counts['active_cases'] = len(active_cases)
+        counts['disposed_cases'] = len(disposed_cases)
+        
+        print(f"📊 Dashboard stats: {len(cases)} total, {len(active_cases)} active, {len(disposed_cases)} disposed")
+        
         return render_template('index.html',
-                             cases=cases,
-                             changed_cases=changed_cases,
-                             reviewed_cases=reviewed_cases,
-                             upcoming_cases=upcoming_cases,
-                             total_cases=counts['total_cases'],
-                             changed_cases_count=counts['changed_cases'],
-                             reviewed_cases_count=counts['reviewed_cases'],
-                             upcoming_hearings_count=counts['upcoming_hearings'],
-                             current_date=datetime.now().strftime('%B %d, %Y'))
-
+            cases=cases,
+            active_cases=active_cases,
+            disposed_cases=disposed_cases,
+            changed_cases=changed_cases,
+            reviewed_cases=reviewed_cases,
+            upcoming_cases=upcoming_cases,
+            total_cases=counts['total_cases'],
+            active_cases_count=counts['active_cases'],
+            disposed_cases_count=counts['disposed_cases'],
+            changed_cases_count=counts['changed_cases'],
+            reviewed_cases_count=counts['reviewed_cases'],
+            upcoming_hearings_count=counts['upcoming_hearings'],
+            current_date=datetime.now().strftime('%B %d, %Y')
+        )
+        
     except Exception as e:
         print(f"💥 Dashboard error: {e}")
-        import traceback
-        traceback.print_exc()
         return render_template('error.html',
-                             error_message=str(e),
-                             error_details="Dashboard failed to load.")
+            error_message=str(e),
+            error_details="Dashboard failed to load.")
 
 @app.route('/upload_page')
 def upload_page():
@@ -150,15 +141,12 @@ def upload_file():
         if file and file.filename.endswith('.txt'):
             os.makedirs('data', exist_ok=True)
             file_path = os.path.join('data', 'myCases.txt')
-            
             file.save(file_path)
-            print(f"✅ File saved to: {file_path}")
             
             stats = db.process_daily_file(file_path)
-            
             if 'error' in stats:
                 return jsonify({'error': f'Processing failed: {stats["error"]}'}), 500
-            
+                
             return jsonify({
                 'message': 'File processed successfully',
                 'stats': stats,
@@ -169,9 +157,18 @@ def upload_file():
         
     except Exception as e:
         print(f"Upload error: {e}")
-        import traceback
-        traceback.print_exc()
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+
+# get all cases API
+@app.route('/api/cases')
+def get_all_cases():
+    """Get all cases API"""
+    try:
+        cases = db.get_all_cases()
+        return jsonify(cases)
+    except Exception as e:
+        print(f"Get all cases error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/case/<cino>')
 def case_detail(cino):
@@ -179,44 +176,30 @@ def case_detail(cino):
     try:
         case = db.get_case_by_cino(cino)
         if not case:
-            return render_template('error.html',
-                                 message="Case not found",
-                                 error_code=404), 404
-        
-        # Get notes history
+            return render_template('error.html', message="Case not found", error_code=404), 404
+            
         case['notes_history'] = db.get_case_notes_history(cino)
-        
         return render_template('case_detail.html', case=case)
+        
     except Exception as e:
         print(f"Case detail error: {e}")
-        return render_template('error.html',
-                             message=f"Error loading case: {str(e)}",
-                             error_code=500), 500
+        return render_template('error.html', message=f"Error loading case: {str(e)}", error_code=500), 500
 
 @app.route('/case/<cino>/update', methods=['POST'])
 def update_case(cino):
-    """Update case - Always mark as reviewed when saved"""
     try:
-        print(f"📝 Updating case {cino}...")
-        
         data = request.json
         if not data:
             return jsonify({'error': 'No data provided'}), 400
-            
+
         notes = data.get('notes', '')
         
-        print(f"📝 Notes: '{notes[:50]}...'")
-        
-        # Update case notes
-        success = db.update_case_notes(cino, notes)
+        # Use single transaction for both operations
+        success = db.update_case_notes_and_mark_reviewed(cino, notes)
         
         if success:
-            # Always mark as reviewed when saving
-            db.mark_case_as_reviewed(cino)
-            print(f"✅ Case {cino} marked as reviewed")
-            
             return jsonify({
-                'message': 'Case marked as reviewed successfully',
+                'message': 'Case updated and marked as reviewed successfully',
                 'has_notes': bool(notes.strip()),
                 'marked_as_reviewed': True
             })
@@ -225,8 +208,6 @@ def update_case(cino):
             
     except Exception as e:
         print(f"❌ Update case error: {e}")
-        import traceback
-        traceback.print_exc()
         return jsonify({'error': f'Update failed: {str(e)}'}), 500
 
 @app.route('/case/<cino>/update_user_side', methods=['POST'])
@@ -327,13 +308,23 @@ def add_case():
         print(f"Add case error: {e}")
         return jsonify({'error': f'Failed to add case: {str(e)}'}), 500
 
+@app.route('/api/cases/upcoming')
+def upcoming_cases_api():
+    """Get upcoming cases"""
+    try:
+        cases = db.get_all_cases()
+        upcoming = get_upcoming_cases(cases)
+        return jsonify(upcoming)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/toggle_case_selection', methods=['POST'])
 def toggle_case_selection():
     """Toggle case selection for bulk operations"""
     try:
         data = request.json
         cinos = data.get('cinos', [])
-        action = data.get('action', 'mark_reviewed')  # mark_reviewed, remove_from_reviewed
+        action = data.get('action', 'mark_reviewed')
         
         if not cinos:
             return jsonify({'error': 'No cases specified'}), 400
@@ -352,7 +343,7 @@ def toggle_case_selection():
             })
         else:
             return jsonify({'error': 'Invalid action'}), 400
-        
+            
     except Exception as e:
         print(f"Toggle case selection error: {e}")
         return jsonify({'error': f'Operation failed: {str(e)}'}), 500
@@ -1010,7 +1001,33 @@ def update_case_field(cino):
         print(f"Update case field error: {e}")
         return jsonify({'success': False, 'error': f'Update failed: {str(e)}'}), 500
 
+# route to get the active and dispose cases from the database.py
+@app.route('/api/cases/active_disposed')
+def active_disposed_cases_api():
+    """Get active and disposed cases"""
+    try:
+        active_disposed = db.get_active_and_disposed_cases()
+        return jsonify(active_disposed)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
+@app.route('/api/cases/active')
+def active_cases_api():
+    """Get active cases"""
+    try:
+        active_disposed = db.get_active_and_disposed_cases()
+        return jsonify(active_disposed.get('active_cases', []))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/cases/disposed')
+def disposed_cases_api():
+    """Get disposed cases"""
+    try:
+        active_disposed = db.get_active_and_disposed_cases()
+        return jsonify(active_disposed.get('disposed_cases', []))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # Add other necessary routes...
 if __name__ == '__main__':
