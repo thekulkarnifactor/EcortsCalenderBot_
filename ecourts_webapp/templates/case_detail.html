@@ -30,102 +30,150 @@
             <div class="row mb-4">
                 <div class="col-md-6">
                     <h6 class="text-secondary mb-3"><i class="fas fa-info-circle"></i> Case Information</h6>
+
                     <div class="mb-3">
                         <label class="form-label text-muted">CINO</label>
                         <input type="text" class="form-control-plaintext" value="{{ case.cino }}" readonly>
                     </div>
+
                     <div class="mb-3">
-                        <label class="form-label text-muted">Case Number</label>
-                        <input type="text" class="form-control-plaintext" value="{{ case.case_no or 'N/A' }}" readonly>
+                        <label class="form-label text-muted">Petitioner</label>
+                        <input type="text" class="form-control form-control-sm" id="petparty_name" value="{{ case.petparty_name or '' }}" onchange="updateCaseField('{{ case.cino }}', 'petparty_name', this.value)" placeholder="Petitioner name">
                     </div>
+
                     <div class="mb-3">
                         <label class="form-label text-muted">Type</label>
-                        <input type="text" class="form-control form-control-sm" value="{{ case.type_name or '' }}" onchange="updateCaseField('{{ case.cino }}', 'type_name', this.value)" placeholder="Case type">
+                        <input type="text" class="form-control form-control-sm" id="type_name" value="{{ case.type_name or '' }}" onchange="updateCaseField('{{ case.cino }}', 'type_name', this.value)" placeholder="Case type">
                     </div>
+
                     <div class="mb-3">
                         <label class="form-label text-muted">Court</label>
-                        <input type="text" class="form-control form-control-sm" value="{{ case.court_no_desg_name or '' }}" onchange="updateCaseField('{{ case.cino }}', 'court_no_desg_name', this.value)" placeholder="Court designation">
+                        <input type="text" class="form-control form-control-sm" id="court_no_desg_name" value="{{ case.court_no_desg_name or '' }}" onchange="updateCaseField('{{ case.cino }}', 'court_no_desg_name', this.value)" placeholder="Court designation">
                     </div>
                 </div>
 
-                <!-- Parties -->
                 <div class="col-md-6">
                     <h6 class="text-secondary mb-3"><i class="fas fa-users"></i> Parties</h6>
-                    <div class="mb-3">
-                        <label class="form-label text-muted">Petitioner</label>
-                        <input type="text" class="form-control form-control-sm" value="{{ case.petparty_name or '' }}" onchange="updateCaseField('{{ case.cino }}', 'petparty_name', this.value)" placeholder="Petitioner name">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label text-muted">Respondent</label>
-                        <input type="text" class="form-control form-control-sm" value="{{ case.resparty_name or '' }}" onchange="updateCaseField('{{ case.cino }}', 'resparty_name', this.value)" placeholder="Respondent name">
-                    </div>
+
                     <div class="mb-3">
                         <label class="form-label text-muted">Your Side</label>
-                        <select class="form-select form-select-sm" onchange="updateCaseField('{{ case.cino }}', 'user_side', this.value)">
-                            <option value="">Select Side</option>
-                            <option value="petitioner" {% if case.user_side == 'petitioner' %}selected{% endif %}>Petitioner</option>
-                            <option value="respondent" {% if case.user_side == 'respondent' %}selected{% endif %}>Respondent</option>
-                        </select>
+                        <select class="form-select form-select-sm" id="user_side" onchange="updateCaseField('{{ case.cino }}', 'user_side', this.value)">
+                <option value="">Select Side</option>
+                <option value="petitioner" {% if case.user_side == 'petitioner' %}selected{% endif %}>Petitioner</option>
+                <option value="respondent" {% if case.user_side == 'respondent' %}selected{% endif %}>Respondent</option>
+            </select>
                     </div>
+
                     <div class="mb-3">
-                        <label class="form-label text-muted">Purpose</label>
-                        <input type="text" class="form-control form-control-sm" value="{{ case.purpose_name or '' }}" onchange="updateCaseField('{{ case.cino }}', 'purpose_name', this.value)" placeholder="Case purpose">
+                        <label class="form-label text-muted">Respondent</label>
+                        <input type="text" class="form-control form-control-sm" id="resparty_name" value="{{ case.resparty_name or '' }}" onchange="updateCaseField('{{ case.cino }}', 'resparty_name', this.value)" placeholder="Respondent name">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted">Case Reg No / Year</label>
+                        <input type="text" class="form-control form-control-sm" value="{{ case.reg_no or 'N/A' }} / {{ case.reg_year or 'N/A' }}" readonly>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted">Next Stage</label>
+                        <input type="text" class="form-control form-control-sm" id="purpose_name" value="{{ case.purpose_name or '' }}" onchange="updateCaseField('{{ case.cino }}', 'purpose_name', this.value)" placeholder="Next Stage">
                     </div>
                 </div>
             </div>
 
+
             <!-- Dates Section -->
-            <div class="row mb-4">
-                <div class="col-md-6">
-                    <h6 class="text-secondary mb-3"><i class="fas fa-calendar-alt"></i> Hearing Dates</h6>
-                    <div class="mb-3">
-                        <label class="form-label text-muted">Next Hearing Date</label>
-                        <input type="date" class="form-control" value="{{ case.date_next_list or '' }}" id="nextHearingInput" onchange="updateHearingDateWithHistory('{{ case.cino }}', this.value)">
+            <div class="row mb-4 ">
+                <div class="col-md-6 ">
+                    <h6 class="text-secondary mb-3 "><i class="fas fa-calendar-alt "></i> Hearing Dates</h6>
+                    <div class="mb-3 ">
+                        <label class="form-label text-muted">Next Hearing Date (DD-MM-YYYY)</label>
+                        <input type="date" class="form-control form-control-sm" value="{{ case.date_next_list or '' }}" data-cino="{{ case.cino }}" onchange="updateHearingDate('{{ case.cino }}', this.value)">
+                        <!-- <div class="input-group">
+                            <input type="text" class="form-control" id="nextHearingInput" value="{{ case.date_next_list | format_date_dmy if case.date_next_list and case.date_next_list not in ['', 'Not set', None] else '' }}" placeholder="DD-MM-YYYY" pattern="\d{2}-\d{2}-\d{4}"
+                                autocomplete="off">
+                            <span class="input-group-text" id="calendar-addon" style="cursor:pointer;">
+                                <i class="fas fa-calendar-alt"></i>
+                            </span>
+                        </div> -->
+                        <small class="text-muted">Current: {{ case.date_next_list | format_date_dmy if case.date_next_list and case.date_next_list not in ['', 'Not set', None] else 'Not set' }}</small>
+                        <!-- <script>
+                            // Simple calendar popup using native date input
+                            document.getElementById('calendar-addon').addEventListener('click', function() {
+                                let tempInput = document.createElement('input');
+                                tempInput.type = 'date';
+                                tempInput.style.position = 'absolute';
+                                tempInput.style.opacity = 0;
+                                document.body.appendChild(tempInput);
+                                tempInput.focus();
+                                tempInput.onchange = function() {
+                                    if (tempInput.value) {
+                                        // Format to DD-MM-YYYY
+                                        const date = new Date(tempInput.value);
+                                        const day = String(date.getDate()).padStart(2, '0');
+                                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                                        const year = date.getFullYear();
+                                        document.getElementById('nextHearingInput').value = `${day}-${month}-${year}`;
+                                    }
+                                    document.body.removeChild(tempInput);
+                                };
+                                tempInput.click();
+                            });
+                        </script> -->
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label text-muted">Last Hearing Date</label>
-                        <input type="text" class="form-control-plaintext" id="lastHearingDisplay" value="{{ case.date_last_list or 'N/A' }}" readonly> {% set last_notes = case.notes_history|selectattr("date", "equalto", case.date_last_list)|list %} {%
-                        if last_notes and last_notes[0].notes %} {% endif %}
-                        <div></div>
-                        <button class="btn btn-primary btn-sm mt-2" onclick="saveCurrentNotes('{{ case.cino }}')">
-                            <i class="fas fa-save me-2"></i> Save Notes
+
+                    <div class="mb-3 ">
+                        <label class="form-label text-muted ">Last Hearing Date</label>
+                        <input type="text " class="form-control-plaintext " id="lastHearingDisplay " value="{{ case.date_last_list | format_date_dmy if case.date_last_list and case.date_last_list not in [ '', 'Not set', None] else 'N/A' }} " readonly>
+                    </div>
+
+                    <div class="mb-3 ">
+                        <label class="form-label text-muted ">Date of Decision</label>
+                        <input type="date" class="form-control" id="date_of_decision_picker" value="{{ case.date_of_decision if case.date_of_decision and case.date_of_decision not in ['Not set', '', None] else '' }}" onchange="updateCaseField('{{ case.cino }}', 'date_of_decision', this.value)">
+                        <!-- <input type="date " class="form-control " id="date_of_decision " value="{{ case.date_of_decision if case.date_of_decision and case.date_of_decision not in [ 'Not set', '', None] else '' }} " onchange="updateCaseField( '{{ case.cino }}', 'date_of_decision', this.value) "> -->
+                        <small class="text-muted ">Current: {{ case.date_of_decision | format_date_dmy if case.date_of_decision and case.date_of_decision not in ['Not set', '', None] else 'Not set' }}</small>
+                    </div>
+                    <div class="d-grid ">
+                        <!-- Save All Changes Button -->
+                        <button class="btn btn-primary btn-sm mt-2 " onclick="saveAllChangesAndMarkReviewed( '{{ case.cino }}') ">
+                            <i class="fas fa-save me-2 "></i> Mark as Reviewed
                         </button>
+
                     </div>
                 </div>
 
                 <!-- Current Notes -->
-                <div class="col-md-6">
-                    <h6 class="text-secondary mb-3"><i class="fas fa-pen"></i> Current Notes</h6>
-                    <div class="mb-3">
-                        <label class="form-label text-muted">Notes for Next Hearing</label>
-                        <textarea class="form-control" rows="4" id="currentNotes" placeholder="Add notes for the next hearing...">{{ case.user_notes or '' }}</textarea>
-
+                <div class="col-md-6 ">
+                    <h6 class="text-secondary mb-3 "><i class="fas fa-pen "></i> Current Notes</h6>
+                    <div class="mb-3 ">
+                        <label class="form-label text-muted ">Notes for Next Hearing</label>
+                        <textarea class="form-control " rows="10 " id="currentNotes " placeholder="Add notes for the next hearing... ">{{ case.user_notes or '' }}</textarea>
                     </div>
                 </div>
             </div>
 
             <!-- Notes History -->
-            <div class="row">
-                <div class="col-12">
-                    <h6 class="text-secondary mb-3">
-                        <i class="fas fa-history"></i> Notes History
+            <div class="row ">
+                <div class="col-12 ">
+                    <h6 class="text-secondary mb-3 ">
+                        <i class="fas fa-history "></i> Notes History
                     </h6>
-                    <div id="notesHistoryContainer">
+                    <div id="notesHistoryContainer ">
                         {% if case.notes_history and case.notes_history|length > 0 %} {% for entry in case.notes_history %}
-                        <div class="card mb-2 border-start border-4 border-info">
-                            <div class="card-body py-2">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="badge bg-info">
-                                                <i class="fas fa-calendar-day"></i> {{ entry.date }}
-                                            </span>
-                                    <small class="text-muted">{{ entry.timestamp }}</small>
+                        <div class="card mb-2 border-start border-4 border-info ">
+                            <div class="card-body py-2 ">
+                                <div class="d-flex justify-content-between align-items-center mb-1 ">
+                                    <span class="badge bg-info ">
+                                        <i class="fas fa-calendar-day "></i> {{ entry.date }}
+                                    </span>
+                                    <small class="text-muted ">{{ entry.timestamp }}</small>
                                 </div>
-                                <div class="text-dark">{{ entry.notes }}</div>
+                                <div class="text-dark ">{{ entry.notes }}</div>
                             </div>
                         </div>
                         {% endfor %} {% else %}
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i> No notes history available for this case.
+                        <div class="alert alert-info ">
+                            <i class="fas fa-info-circle "></i> No notes history available for this case.
                         </div>
                         {% endif %}
                     </div>
@@ -136,42 +184,6 @@
 </div>
 
 <script>
-    function updateHearingDateWithHistory(cino, newDate) {
-        if (!newDate) return;
-
-        const currentNotes = document.getElementById('currentNotes').value;
-        const currentNextDate = document.getElementById('nextHearingInput').defaultValue;
-
-        fetch(`/case/${cino}/update_hearing_date_with_history`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    new_hearing_date: newDate,
-                    notes: currentNotes
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Update last hearing display
-                    document.getElementById('lastHearingDisplay').value = currentNextDate || 'N/A';
-                    document.getElementById('nextHearingInput').defaultValue = newDate;
-
-                    showAlert('Hearing date updated successfully! Previous date moved to last hearing.', 'success');
-
-                    // Reload page to show updated notes history
-                    setTimeout(() => location.reload(), 1500);
-                } else {
-                    showAlert('Failed to update hearing date: ' + (data.error || 'Unknown error'), 'danger');
-                }
-            })
-            .catch(error => {
-                showAlert('Error updating hearing date: ' + error.message, 'danger');
-            });
-    }
-
     function updateCaseField(cino, fieldName, fieldValue) {
         fetch(`/case/${cino}/update_field`, {
                 method: 'POST',
@@ -196,78 +208,274 @@
             });
     }
 
-    function saveCurrentNotes(cino) {
-        console.log('Saving notes for case:', cino);
+    // FIXED: Save all changes and mark as reviewed
+    function saveAllChangesAndMarkReviewed(cino) {
+        console.log('Saving all changes and marking as reviewed:', cino);
 
-        // Try multiple selectors to find the notes input
-        let notesInput = document.querySelector('#notes-input') ||
-            document.querySelector('.notes-input') ||
-            document.querySelector('textarea[name="notes"]') ||
+        // Get all form inputs directly
+        const data = {
+            notes: '',
+            next_hearing_date: '',
+            date_of_decision: ''
+        };
+
+        // Collect data from form elements
+        const notesTextarea = document.querySelector('textarea[name="notes "]') ||
+            document.querySelector('#notes') ||
+            document.querySelector('.form-control[placeholder*="notes "]') ||
             document.querySelector('textarea');
 
-        if (!notesInput) {
-            showAlert('Notes input field not found!', 'danger');
-            console.error('Could not find notes input field');
-            return;
+        if (notesTextarea) {
+            data.notes = notesTextarea.value || '';
+            console.log('Found notes:', data.notes.substring(0, 50) + '...');
+        } else {
+            console.warn('Notes textarea not found');
         }
 
-        let notes = notesInput.value.trim();
-        console.log('Notes content:', notes);
+        const hearingDateInput = document.querySelector('input[name="next_hearing_date "]') ||
+            document.querySelector('#next_hearing_date') ||
+            document.querySelector('input[type="date "]');
+        if (hearingDateInput) data.next_hearing_date = hearingDateInput.value || '';
 
-        if (!notes) {
-            showAlert('Please enter some notes before saving', 'warning');
-            return;
-        }
+        const decisionDateInput = document.querySelector('input[name="date_of_decision "]') ||
+            document.querySelector('#date_of_decision');
+        if (decisionDateInput) data.date_of_decision = decisionDateInput.value || '';
 
-        // Disable button during save
-        let saveButton = event.target;
-        let originalText = saveButton.innerHTML;
-        saveButton.disabled = true;
-        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Saving...';
+        console.log('Collected form data:', data);
+
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-2 "></i> Saving...';
 
         fetch(`/case/${cino}/update`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    notes: notes
-                })
+                body: JSON.stringify(data)
             })
             .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showAlert('Failed to save notes: ' + data.error, 'danger');
-                } else {
-                    showAlert('Notes saved successfully!', 'success');
+            .then(result => {
+                if (result.error) {
+                    throw new Error(result.error);
                 }
+
+                console.log('Update successful:', result);
+                showAlert(`Case saved and marked as reviewed successfully. Notes: "${data.notes.substring(0, 30)}... "`, 'success');
+
+                setTimeout(() => {
+                    window.location.href = '/dashboard';
+                }, 1500);
             })
             .catch(error => {
-                console.error('Save error:', error);
-                showAlert('Failed to save notes: ' + error.message, 'danger');
+                console.error('Save and mark reviewed error:', error);
+                showAlert('Failed to save and mark as reviewed: ' + error.message, 'danger');
             })
             .finally(() => {
-                // Re-enable button
-                saveButton.disabled = false;
-                saveButton.innerHTML = originalText;
+                button.disabled = false;
+                button.innerHTML = originalText;
             });
     }
+
+
+    // Helper function to store reviewed state
+    function storeReviewedState(cino, data) {
+        try {
+            const reviewedStates = JSON.parse(localStorage.getItem('reviewedStates') || '{}');
+            reviewedStates[cino] = {
+                data: data,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('reviewedStates', JSON.stringify(reviewedStates));
+            console.log('Stored reviewed state for:', cino);
+        } catch (error) {
+            console.error('Failed to store reviewed state:', error);
+        }
+    }
+
+    // Helper function to update UI after review
+    function updateCaseUIAfterReview(cino) {
+        const card = document.querySelector(`[data-cino="${cino} "]`);
+        if (card) {
+            card.dataset.changed = 'false';
+            card.classList.remove('border-warning');
+            card.classList.add('border-success');
+            console.log('Updated UI for reviewed case:', cino);
+        }
+    }
+
+    // Show custom alert (if not already implemented)
+    function showAlert(message, type = 'info') {
+        // Simple alert implementation - you can customize this
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        alertDiv.style.top = '20px';
+        alertDiv.style.right = '20px';
+        alertDiv.style.zIndex = '9999';
+        alertDiv.innerHTML = `
+        ${message}
+        <button type="button " class="btn-close " data-bs-dismiss="alert "></button>
+    `;
+        document.body.appendChild(alertDiv);
+
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.parentNode.removeChild(alertDiv);
+            }
+        }, 5000);
+    }
+
+    function updateCaseUIAfterReview(cino) {
+        const card = document.querySelector(`[data-cino="${cino} "]`);
+        if (card) {
+            card.dataset.changed = 'false';
+            card.classList.remove('border-warning');
+            card.classList.add('border-success');
+        }
+    }
+
+    function unmarkReviewed(cino) {
+        showConfirm('Unmark this case and restore it to previous state?', 'warning')
+            .then(confirmed => {
+                if (!confirmed) return;
+
+                // Get stored state
+                const reviewedStates = JSON.parse(localStorage.getItem('reviewedStates') || '{}');
+                const previousState = reviewedStates[cino];
+
+                fetch('/case/' + cino + '/unmark_and_restore', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            restore_data: previousState ? previousState.data : null
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            throw new Error(data.error);
+                        }
+
+                        showAlert('Case unmarked and restored to previous state', 'success');
+
+                        // Remove from localStorage
+                        if (previousState) {
+                            delete reviewedStates[cino];
+                            localStorage.setItem('reviewedStates', JSON.stringify(reviewedStates));
+                        }
+
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1000);
+                    })
+                    .catch(error => {
+                        showAlert('Failed to unmark and restore: ' + error.message, 'danger');
+                    });
+            });
+    }
+
+
+
+    function formatDateToDDMMYYYY(dateString) {
+        // Handle null, undefined, empty, or invalid values
+        if (!dateString ||
+            dateString === 'Not set' ||
+            dateString === '' ||
+            dateString === 'null' ||
+            dateString === 'undefined' ||
+            dateString === 'NaN' ||
+            String(dateString).toLowerCase() === 'none') {
+            return 'Not set';
+        }
+
+        try {
+            // Handle string conversion
+            const dateStr = String(dateString).trim();
+
+            // Check if already in DD-MM-YYYY format
+            if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
+                return dateStr;
+            }
+
+            // Try to parse as YYYY-MM-DD
+            const date = new Date(dateStr);
+
+            // Check if date is valid
+            if (isNaN(date.getTime())) {
+                return 'Not set';
+            }
+
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const year = date.getFullYear();
+
+            // Validate that we got reasonable values
+            if (isNaN(day) || isNaN(month) || isNaN(year) || year < 1900 || year > 2100) {
+                return 'Not set';
+            }
+
+            return `${day}-${month}-${year}`;
+        } catch (error) {
+            console.warn('Date formatting error:', error, 'for value:', dateString);
+            return 'Not set';
+        }
+    }
+
+    // Format dates on page load with error handling
+    document.addEventListener('DOMContentLoaded', function() {
+        try {
+            // Format last hearing date display
+            const lastHearingDisplay = document.getElementById('lastHearingDisplay');
+            if (lastHearingDisplay && lastHearingDisplay.value && lastHearingDisplay.value !== 'N/A') {
+                const formattedDate = formatDateToDDMMYYYY(lastHearingDisplay.value);
+                if (formattedDate !== 'Not set') {
+                    lastHearingDisplay.value = formattedDate;
+                }
+            }
+
+            // Format any other date displays on the page
+            const dateElements = document.querySelectorAll('[data-format-date]');
+            dateElements.forEach(element => {
+                const originalValue = element.textContent || element.value;
+                if (originalValue) {
+                    const formattedDate = formatDateToDDMMYYYY(originalValue);
+                    if (element.tagName.toLowerCase() === 'input') {
+                        element.value = formattedDate;
+                    } else {
+                        element.textContent = formattedDate;
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error formatting dates on page load:', error);
+        }
+    });
+
+    // Format dates on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Format last hearing date display
+        const lastHearingDisplay = document.getElementById('lastHearingDisplay');
+        if (lastHearingDisplay && lastHearingDisplay.value && lastHearingDisplay.value !== 'N/A') {
+            lastHearingDisplay.value = formatDateToDDMMYYYY(lastHearingDisplay.value);
+        }
+    });
+
 
     function showAlert(message, type = 'info') {
         const alertContainer = document.getElementById('caseDetailAlerts');
         const alertId = 'alert-' + Date.now();
-
         const alertHTML = `
-        <div id="${alertId}" class="alert alert-${type} alert-dismissible fade show" role="alert">
-            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : 'info-circle'}"></i>
+        <div id="${alertId} " class="alert alert-${type} alert-dismissible fade show " role="alert ">
+            <i class="fas fa-${type==='success' ? 'check-circle' : type==='danger' ? 'exclamation-triangle' : 'info-circle'} "></i>
             ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <button type="button " class="btn-close " data-bs-dismiss="alert "></button>
         </div>
-    `;
-
+        `;
         alertContainer.innerHTML = alertHTML;
-
-        // Auto-remove after 3 seconds
         setTimeout(() => {
             const alert = document.getElementById(alertId);
             if (alert) alert.remove();

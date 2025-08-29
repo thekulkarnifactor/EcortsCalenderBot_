@@ -1,14 +1,26 @@
 {% extends "base.html" %} {% block title %}Error - e-Courts Case Management{% endblock %} {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card border-0 shadow">
-            <div class="card-body text-center py-5">
-                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-4"></i>
-                <h3 class="card-title">{{ error_code or 'Error' }}</h3>
-                <p class="card-text text-muted mb-4">{{ message or 'Something went wrong' }}</p>
-                <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
-                    <i class="fas fa-home me-2"></i>Back to Dashboard
-                </a>
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h4><i class="fas fa-exclamation-triangle"></i> Error</h4>
+                </div>
+                <div class="card-body text-center">
+                    <div class="mb-4">
+                        <i class="fas fa-exclamation-triangle text-warning" style="font-size: 4rem;"></i>
+                    </div>
+                    <h3>{{ message or 'Something went wrong' }}</h3>
+                    <p class="text-muted">{{ error_message or 'An unexpected error occurred.' }}</p>
+                    {% if error_details %}
+                    <div class="alert alert-info">
+                        <strong>Details:</strong> {{ error_details }}
+                    </div>
+                    {% endif %}
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">
+                        <i class="fas fa-home"></i> Back to Dashboard
+                    </a>
+                </div>
             </div>
         </div>
     </div>

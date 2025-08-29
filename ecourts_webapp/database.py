@@ -592,36 +592,41 @@ class CaseDatabase:
             return 0
 
     def update_case_user_side(self, cino: str, user_side: str) -> bool:
-        """Update case user side (petitioner/respondent)"""
+        """Update case user side with proper history tracking"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
+            # Get current value first
+            cursor.execute("SELECT user_side FROM cases WHERE cino = ?", (cino,))
+            result = cursor.fetchone()
+            old_user_side = result[0] if result else ''
+            
             cursor.execute("""
-            UPDATE cases
-            SET user_side = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE cino = ?
+                UPDATE cases
+                SET user_side = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE cino = ?
             """, (user_side, cino))
             
-            # Record the change in history
+            # Record the change with old value
             cursor.execute("""
-            INSERT INTO case_history (cino, field_name, old_value, new_value)
-            VALUES (?, 'user_side_updated', '', ?)
-            """, (cino, user_side))
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'user_side_updated', ?, ?)
+            """, (cino, old_user_side or '', user_side))
             
             conn.commit()
             success = cursor.rowcount > 0
             conn.close()
             
             if success:
-                print(f"✅ Updated user side for case {cino}: {user_side}")
+                print(f"✅ Updated user side for case {cino}: '{old_user_side}' → '{user_side}'")
             return success
             
         except Exception as e:
             print(f"Error updating user side: {e}")
             return False
-
+    
     def _row_to_dict(self, row: tuple) -> Dict:
         """Convert database row to dictionary"""
         if not row:
@@ -924,33 +929,38 @@ class CaseDatabase:
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            
+
             # Valid fields that can be updated
             valid_fields = [
                 'petparty_name', 'resparty_name', 'purpose_name',
-                'type_name', 'court_no_desg_name', 'user_side'
+                'type_name', 'court_no_desg_name', 'user_side', 'date_of_decision'
             ]
 
             if field_name not in valid_fields:
                 return False
 
-            cursor.execute(f"""
-            UPDATE cases
-            SET {field_name} = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE cino = ?
-            """, (field_value, cino))
+            # Handle empty date fields properly
+            if field_name == 'date_of_decision' and not field_value.strip():
+                field_value = None
             
+            cursor.execute(f"""
+                UPDATE cases
+                SET {field_name} = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE cino = ?
+            """, (field_value, cino))
+
             # Record the change
             cursor.execute("""
-            INSERT INTO case_history (cino, field_name, old_value, new_value)
-            VALUES (?, ?, '', ?)
-            """, (cino, f'{field_name}_updated', field_value))
-            
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, ?, '', ?)
+            """, (cino, f'{field_name}_updated', field_value or ''))
+
             conn.commit()
             success = cursor.rowcount > 0
             conn.close()
+
             return success
-            
+
         except Exception as e:
             print(f"Error updating case field: {e}")
             return False
@@ -1004,39 +1014,634 @@ class CaseDatabase:
                 'error': str(e)
             }
 
-    def update_case_notes_and_mark_reviewed(self, cino: str, notes: str) -> bool:
-        """Update case notes and mark as reviewed in single transaction"""
+    def restore_all_fields_and_unmark_reviewed(self, cino: str) -> bool:
+        """Restore ALL fields to their exact previous state before review"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Single transaction for both operations
+            # Get the most recent complete state before review
             cursor.execute("""
-                UPDATE cases 
-                SET user_notes = ?, 
-                    is_changed = FALSE, 
-                    updated_at = CURRENT_TIMESTAMP 
-                WHERE cino = ?
-            """, (notes, cino))
+                SELECT old_value, new_value FROM case_history 
+                WHERE cino = ? AND field_name = 'complete_state_before_review'
+                ORDER BY changed_at DESC
+                LIMIT 1
+            """, (cino,))
             
-            # Record both actions in history
-            cursor.execute("""
-                INSERT INTO case_history (cino, field_name, old_value, new_value)
-                VALUES (?, 'notes_updated_and_reviewed', '', ?)
-            """, (cino, notes))
+            history_result = cursor.fetchone()
             
-            # Commit single transaction
+            if history_result:
+                try:
+                    # Parse the previous state
+                    previous_state_json = history_result[0]
+                    previous_state = json.loads(previous_state_json)
+                    
+                    print(f"🔍 Restoring complete state for {cino}: {previous_state}")
+                    
+                    # Restore to exact previous state
+                    cursor.execute("""
+                        UPDATE cases 
+                        SET user_notes = ?,
+                            date_next_list = ?,
+                            date_of_decision = ?,
+                            user_side = ?,
+                            is_changed = TRUE,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE cino = ?
+                    """, (
+                        previous_state.get('user_notes', ''),
+                        previous_state.get('date_next_list', ''),
+                        previous_state.get('date_of_decision') or None,
+                        previous_state.get('user_side', ''),
+                        cino
+                    ))
+                    
+                    # Record this restoration
+                    cursor.execute("""
+                        INSERT INTO case_history (cino, field_name, old_value, new_value)
+                        VALUES (?, 'complete_state_restored', ?, ?)
+                    """, (cino, 
+                        history_result[1],  # Current state 
+                        previous_state_json))  # Restored state
+                    
+                except json.JSONDecodeError as e:
+                    print(f"❌ Error parsing state JSON for {cino}: {e}")
+                    return False
+                    
+            else:
+                # Fallback: Clear all user-added data if no history found
+                print(f"⚠️ No complete state history found for {cino}, clearing user data")
+                cursor.execute("""
+                    UPDATE cases 
+                    SET user_notes = '',
+                        date_of_decision = NULL,
+                        user_side = '',
+                        is_changed = TRUE,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE cino = ?
+                """, (cino,))
+                
+                cursor.execute("""
+                    INSERT INTO case_history (cino, field_name, old_value, new_value)
+                    VALUES (?, 'fallback_clear', 'reviewed_state', 'cleared_user_data')
+                """, (cino,))
+            
             conn.commit()
             success = cursor.rowcount > 0
             conn.close()
             
             if success:
-                print(f"✅ Updated notes and marked case {cino} as reviewed")
+                print(f"✅ Completely restored case {cino} to previous state")
+            return success
+            
+        except Exception as e:
+            print(f"❌ Error restoring complete state for case {cino}: {e}")
+            return False
+
+    def unmark_reviewed_and_clear_all_fields(self, cino: str) -> bool:
+        """Unmark case as reviewed and clear ALL user-modifiable fields"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get current state for history
+            cursor.execute("""
+                SELECT user_notes, date_next_list, date_of_decision, user_side 
+                FROM cases WHERE cino = ?
+            """, (cino,))
+            current_result = cursor.fetchone()
+            
+            if not current_result:
+                conn.close()
+                return False
+                
+            current_notes, current_next_date, current_decision_date, current_user_side = current_result
+            
+            # Clear ALL user-modifiable fields and mark as pending
+            cursor.execute("""
+                UPDATE cases 
+                SET user_notes = '',
+                    date_of_decision = NULL,
+                    user_side = '',
+                    is_changed = TRUE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE cino = ?
+            """, (cino,))
+            
+            # Record the clearing action
+            cursor.execute("""
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'comprehensive_clear', ?, 'all_fields_cleared')
+            """, (cino, 
+                json.dumps({
+                    'user_notes': current_notes or '',
+                    'date_next_list': current_next_date or '',
+                    'date_of_decision': current_decision_date or '',
+                    'user_side': current_user_side or ''
+                })))
+            
+            conn.commit()
+            success = cursor.rowcount > 0
+            conn.close()
+            
+            if success:
+                print(f"✅ Cleared all user fields for case {cino}")
+            return success
+            
+        except Exception as e:
+            print(f"❌ Error clearing all fields for case {cino}: {e}")
+            return False
+
+    def update_case_date_of_decision(self, cino: str, date_of_decision: str) -> bool:
+        """Update case date of decision with proper history tracking"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get current value first
+            cursor.execute("SELECT date_of_decision FROM cases WHERE cino = ?", (cino,))
+            result = cursor.fetchone()
+            old_decision_date = result[0] if result else ''
+            
+            cursor.execute("""
+                UPDATE cases
+                SET date_of_decision = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE cino = ?
+            """, (date_of_decision, cino))
+            
+            # Record the change with old value
+            cursor.execute("""
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'date_of_decision_updated', ?, ?)
+            """, (cino, old_decision_date or '', date_of_decision))
+            
+            conn.commit()
+            success = cursor.rowcount > 0
+            conn.close()
+            
+            if success:
+                print(f"✅ Updated date of decision for case {cino}: '{old_decision_date}' → '{date_of_decision}'")
+            return success
+            
+        except Exception as e:
+            print(f"Error updating date of decision: {e}")
+            return False
+    
+    def restore_previous_notes_and_unmark_reviewed(self, cino: str) -> bool:
+        """Restore previous notes and unmark case as reviewed"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get the current notes before reverting
+            cursor.execute("SELECT user_notes FROM cases WHERE cino = ?", (cino,))
+            current_result = cursor.fetchone()
+            current_notes = current_result[0] if current_result else ''
+            
+            # Fetch notes history to find the previous state
+            cursor.execute("""
+            SELECT new_value FROM case_history
+            WHERE cino = ? AND (field_name = 'notes_updated_and_reviewed' OR field_name LIKE '%notes%')
+            ORDER BY changed_at DESC
+            LIMIT 2
+            """, (cino,))
+            
+            history_rows = cursor.fetchall()
+            
+            # Determine previous notes value
+            if len(history_rows) >= 2:
+                # Get the second-to-last note (before the current one)
+                previous_notes = history_rows[1][0] if history_rows[1][0] else ''
+            elif len(history_rows) == 1:
+                # Only one history entry, revert to empty
+                previous_notes = ''
+            else:
+                # No history, set to empty
+                previous_notes = ''
+            
+            # Update case: revert notes and mark as pending (is_changed = TRUE)
+            cursor.execute("""
+            UPDATE cases
+            SET user_notes = ?, 
+                is_changed = TRUE, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE cino = ?
+            """, (previous_notes, cino))
+            
+            # Record this action in history
+            cursor.execute("""
+            INSERT INTO case_history (cino, field_name, old_value, new_value)
+            VALUES (?, 'unmarked_and_reverted', ?, ?)
+            """, (cino, current_notes, previous_notes))
+            
+            conn.commit()
+            success = cursor.rowcount > 0
+            conn.close()
+            
+            if success:
+                print(f"✅ Unmarked case {cino} and reverted notes: '{current_notes}' → '{previous_notes}'")
             
             return success
             
         except Exception as e:
-            print(f"❌ Error updating case notes and marking reviewed: {e}")
+            print(f"❌ Error unmarking and reverting case {cino}: {e}")
+            return False
+
+    def update_case_notes_without_marking_reviewed(self, cino: str, notes: str) -> bool:
+        """Update case notes but keep case in pending state (is_changed = TRUE)"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+            UPDATE cases
+            SET user_notes = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE cino = ?
+            """, (notes, cino))
+            
+            # Record in history but don't mark as reviewed
+            cursor.execute("""
+            INSERT INTO case_history (cino, field_name, old_value, new_value)
+            VALUES (?, 'notes_updated_pending', '', ?)
+            """, (cino, notes))
+            
+            conn.commit()
+            success = cursor.rowcount > 0
+            conn.close()
+            
+            if success:
+                print(f"✅ Updated notes for case {cino} (kept in pending state)")
+            
+            return success
+            
+        except Exception as e:
+            print(f"❌ Error updating notes without marking reviewed: {e}")
+            return False
+
+    def remove_from_reviewed_and_clear_notes(self, cinos: List[str]) -> int:
+        """Remove cases from reviewed section and completely clear their notes"""
+        try:
+            success_count = 0
+            for cino in cinos:
+                if self.unmark_reviewed_and_clear_notes(cino):
+                    success_count += 1
+            
+            print(f"✅ Removed {success_count} cases from reviewed and cleared all notes")
+            return success_count
+            
+        except Exception as e:
+            print(f"Error removing cases from reviewed and clearing notes: {e}")
+            return 0
+
+    def unmark_reviewed_and_clear_notes(self, cino: str) -> bool:
+        """Unmark case as reviewed and clear all notes completely"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get current notes before clearing (for history)
+            cursor.execute("SELECT user_notes FROM cases WHERE cino = ?", (cino,))
+            current_result = cursor.fetchone()
+            current_notes = current_result[0] if current_result else ''
+            
+            # Update case: clear notes and mark as pending (is_changed = TRUE)
+            cursor.execute("""
+                UPDATE cases 
+                SET user_notes = '',
+                    is_changed = TRUE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE cino = ?
+            """, (cino,))
+            
+            # Record this action in history
+            cursor.execute("""
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'unmarked_and_notes_cleared', ?, '')
+            """, (cino, current_notes))
+            
+            conn.commit()
+            success = cursor.rowcount > 0
+            conn.close()
+            
+            if success:
+                print(f"✅ Unmarked case {cino} and cleared all notes")
+            return success
+            
+        except Exception as e:
+            print(f"❌ Error unmarking and clearing notes for case {cino}: {e}")
+            return False
+
+    def remove_from_reviewed_and_revert_all_fields(self, cinos: List[str]) -> int:
+        """Remove cases from reviewed section and revert ALL fields to previous state"""
+        try:
+            success_count = 0
+            for cino in cinos:
+                if self.restore_all_fields_and_unmark_reviewed(cino):
+                    success_count += 1
+            
+            print(f"✅ Comprehensive revert completed for {success_count} cases")
+            return success_count
+            
+        except Exception as e:
+            print(f"Error in bulk comprehensive revert: {e}")
+            return 0
+
+    def remove_from_reviewed_and_clear_all_fields(self, cinos: List[str]) -> int:
+        """Remove cases from reviewed section and clear ALL fields"""
+        try:
+            success_count = 0
+            for cino in cinos:
+                if self.unmark_reviewed_and_clear_all_fields(cino):
+                    success_count += 1
+            
+            print(f"✅ Comprehensive clear completed for {success_count} cases")
+            return success_count
+            
+        except Exception as e:
+            print(f"Error in bulk comprehensive clear: {e}")
+            return 0
+
+    def restore_complete_case_state_and_unmark(self, cino: str) -> bool:
+        """Restore COMPLETE case state (all fields) to exact previous state before review"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get the most recent complete state before review
+            cursor.execute("""
+                SELECT old_value FROM case_history
+                WHERE cino = ? AND field_name = 'complete_state_before_review'
+                ORDER BY changed_at DESC
+                LIMIT 1
+            """, (cino,))
+            
+            history_result = cursor.fetchone()
+            
+            if history_result:
+                try:
+                    # Parse the complete previous state
+                    previous_state_json = history_result[0]
+                    previous_state = json.loads(previous_state_json)
+                    
+                    print(f"🔄 Restoring COMPLETE state for {cino}:")
+                    print(f"📋 Restoring fields: {list(previous_state.keys())}")
+                    
+                    # *** CRITICAL FIX: Restore ALL fields to exact previous state ***
+                    cursor.execute("""
+                        UPDATE cases
+                        SET case_no = ?,
+                            petparty_name = ?,
+                            resparty_name = ?,
+                            establishment_name = ?,
+                            state_name = ?,
+                            district_name = ?,
+                            date_next_list = ?,
+                            date_last_list = ?,
+                            purpose_name = ?,
+                            type_name = ?,
+                            court_no_desg_name = ?,
+                            disp_name = ?,
+                            user_notes = ?,
+                            user_side = ?,
+                            reg_no = ?,
+                            reg_year = ?,
+                            date_of_decision = ?,
+                            is_changed = TRUE,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE cino = ?
+                    """, (
+                        previous_state.get('case_no', ''),           # Type
+                        previous_state.get('petparty_name', ''),     # Petitioner  
+                        previous_state.get('resparty_name', ''),     # Respondent
+                        previous_state.get('establishment_name', ''), # Court
+                        previous_state.get('state_name', ''),
+                        previous_state.get('district_name', ''),
+                        previous_state.get('date_next_list', ''),
+                        previous_state.get('date_last_list', ''),
+                        previous_state.get('purpose_name', ''),      # Purpose
+                        previous_state.get('type_name', ''),         # Type Name
+                        previous_state.get('court_no_desg_name', ''), # Court designation
+                        previous_state.get('disp_name', ''),
+                        previous_state.get('user_notes', ''),
+                        previous_state.get('user_side', ''),
+                        previous_state.get('reg_no'),
+                        previous_state.get('reg_year'),
+                        previous_state.get('date_of_decision', '') or None,
+                        cino
+                    ))
+                    
+                    # Record this restoration
+                    cursor.execute("""
+                        INSERT INTO case_history (cino, field_name, old_value, new_value)
+                        VALUES (?, 'complete_state_restored', 'reviewed_state', ?)
+                    """, (cino, previous_state_json))
+                    
+                except json.JSONDecodeError as e:
+                    print(f"❌ Error parsing state JSON for {cino}: {e}")
+                    return False
+            else:
+                # Fallback: Clear only user-added data if no complete history found
+                print(f"⚠️ No complete state history found for {cino}, clearing user additions only")
+                cursor.execute("""
+                    UPDATE cases
+                    SET user_notes = '',
+                        date_of_decision = NULL,
+                        user_side = '',
+                        is_changed = TRUE,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE cino = ?
+                """, (cino,))
+                
+                cursor.execute("""
+                    INSERT INTO case_history (cino, field_name, old_value, new_value)
+                    VALUES (?, 'fallback_clear_user_data', 'reviewed_state', 'cleared_user_additions')
+                """, (cino,))
+            
+            conn.commit()
+            success = cursor.rowcount > 0
+            conn.close()
+            
+            if success:
+                print(f"✅ COMPLETELY restored case {cino} to previous state - ALL FIELDS")
+            return success
+            
+        except Exception as e:
+            print(f"❌ Error restoring complete state for case {cino}: {e}")
+            return False
+
+    def unmark_reviewed_and_clear_all_user_data(self, cino: str) -> bool:
+        """Unmark case as reviewed and clear ALL user-added data (not original case data)"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get current state for history
+            cursor.execute("""
+                SELECT user_notes, date_of_decision, user_side 
+                FROM cases WHERE cino = ?
+            """, (cino,))
+            current_result = cursor.fetchone()
+            
+            if not current_result:
+                conn.close()
+                return False
+                
+            current_notes, current_decision_date, current_user_side = current_result
+            
+            # Clear ONLY user-added fields, keep original case data
+            cursor.execute("""
+                UPDATE cases 
+                SET user_notes = '',
+                    date_of_decision = NULL,
+                    user_side = '',
+                    is_changed = TRUE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE cino = ?
+            """, (cino,))
+            
+            # Record the clearing action
+            cursor.execute("""
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'cleared_user_data', ?, 'all_user_fields_cleared')
+            """, (cino, 
+                json.dumps({
+                    'user_notes': current_notes or '',
+                    'date_of_decision': current_decision_date or '',
+                    'user_side': current_user_side or ''
+                })))
+            
+            conn.commit()
+            success = cursor.rowcount > 0
+            conn.close()
+            
+            if success:
+                print(f"✅ Cleared user data for case {cino} (kept original case data)")
+            return success
+            
+        except Exception as e:
+            print(f"❌ Error clearing user data for case {cino}: {e}")
+            return False
+        
+    def remove_from_reviewed_and_restore_complete_state(self, cinos: List[str]) -> int:
+        """Remove cases from reviewed section and restore COMPLETE state for all fields"""
+        try:
+            success_count = 0
+            for cino in cinos:
+                if self.restore_complete_case_state_and_unmark(cino):
+                    success_count += 1
+            
+            print(f"✅ Complete state restoration completed for {success_count} cases")
+            return success_count
+            
+        except Exception as e:
+            print(f"Error in bulk complete state restoration: {e}")
+            return 0
+
+    def remove_from_reviewed_and_clear_user_data(self, cinos: List[str]) -> int:
+        """Remove cases from reviewed section and clear user data only"""
+        try:
+            success_count = 0
+            for cino in cinos:
+                if self.unmark_reviewed_and_clear_all_user_data(cino):
+                    success_count += 1
+            
+            print(f"✅ User data clearing completed for {success_count} cases")
+            return success_count
+            
+        except Exception as e:
+            print(f"Error in bulk user data clearing: {e}")
+            return 0
+        
+    def update_case_notes_and_mark_reviewed(self, cino: str, notes: str, next_hearing_date: str = None, date_of_decision: str = None) -> bool:
+        """Update case notes, dates, and mark as reviewed - WITH COMPLETE STATE TRACKING"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # FIRST: Get COMPLETE current state before making ANY changes
+            cursor.execute("""
+                SELECT cino, case_no, petparty_name, resparty_name, establishment_name, 
+                    state_name, district_name, date_next_list, date_last_list, 
+                    purpose_name, type_name, court_no_desg_name, disp_name, 
+                    user_notes, user_side, reg_no, reg_year, date_of_decision
+                FROM cases WHERE cino = ?
+            """, (cino,))
+            current_result = cursor.fetchone()
+            
+            if not current_result:
+                conn.close()
+                return False
+            
+            # Create complete state snapshot BEFORE changes
+            current_state = {
+                'cino': current_result[0] or '',
+                'case_no': current_result[1] or '',
+                'petparty_name': current_result[2] or '',
+                'resparty_name': current_result[3] or '',
+                'establishment_name': current_result[4] or '',
+                'state_name': current_result[5] or '',
+                'district_name': current_result[6] or '',
+                'date_next_list': current_result[7] or '',
+                'date_last_list': current_result[8] or '',
+                'purpose_name': current_result[9] or '',
+                'type_name': current_result[10] or '',
+                'court_no_desg_name': current_result[11] or '',
+                'disp_name': current_result[12] or '',
+                'user_notes': current_result[13] or '',
+                'user_side': current_result[14] or '',
+                'reg_no': current_result[15],
+                'reg_year': current_result[16],
+                'date_of_decision': current_result[17] or ''
+            }
+            
+            # Build the update query dynamically
+            update_fields = ["user_notes = ?", "is_changed = FALSE", "updated_at = CURRENT_TIMESTAMP"]
+            values = [notes]
+            
+            # Create new state with changes
+            new_state = current_state.copy()
+            new_state['user_notes'] = notes
+            
+            # Add next hearing date if provided
+            if next_hearing_date:
+                update_fields.append("date_next_list = ?")
+                values.append(next_hearing_date)
+                new_state['date_next_list'] = next_hearing_date
+            
+            # Add date of decision if provided
+            if date_of_decision:
+                update_fields.append("date_of_decision = ?")
+                values.append(date_of_decision)
+                new_state['date_of_decision'] = date_of_decision
+            
+            values.append(cino)  # For WHERE clause
+            
+            # Update the case
+            cursor.execute(f"""
+                UPDATE cases SET {', '.join(update_fields)}
+                WHERE cino = ?
+            """, values)
+            
+            # CRITICAL: Store COMPLETE state before review for restoration
+            cursor.execute("""
+                INSERT INTO case_history (cino, field_name, old_value, new_value)
+                VALUES (?, 'complete_state_before_review', ?, ?)
+            """, (cino, 
+                json.dumps(current_state, indent=2),  # Complete original state
+                json.dumps(new_state, indent=2)))     # Complete new state after review
+            
+            conn.commit()
+            success = cursor.rowcount > 0
+            conn.close()
+            
+            if success:
+                print(f"✅ Updated and marked case {cino} as reviewed with COMPLETE state backup")
+                print(f"📋 Backed up ALL fields: {list(current_state.keys())}")
+            return success
+            
+        except Exception as e:
+            print(f"❌ Error updating case and storing complete state: {e}")
             if 'conn' in locals():
                 conn.rollback()
                 conn.close()

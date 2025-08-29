@@ -334,15 +334,26 @@ function updateSearchResultsCount(count) {
     }
 }
 
-// UPDATED: Mark case as reviewed - No browser alerts
 function markAsReviewed(cino) {
     console.log('Marking case as reviewed:', cino);
     
     const card = document.querySelector(`[data-cino="${cino}"]`);
-    const notesInput = card?.querySelector('.notes-input');
-    const notes = notesInput ? notesInput.value : '';
+    if (!card) {
+        console.error('Card not found for CINO:', cino);
+        showAlert('Error: Case not found', 'danger');
+        return;
+    }
     
+    const notesInput = card.querySelector('.notes-input');
+    const notes = notesInput ? notesInput.value.trim() : '';
+    
+    // Get the button that triggered this
     const saveBtn = event.target.closest('button');
+    if (!saveBtn) {
+        console.error('Save button not found');
+        return;
+    }
+    
     const originalText = saveBtn.innerHTML;
     saveBtn.disabled = true;
     saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
@@ -356,69 +367,473 @@ function markAsReviewed(cino) {
             notes: notes
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.error) {
             throw new Error(data.error);
         }
         
-        // REPLACED: Browser alert with custom alert
+        console.log('Case updated successfully:', data);
         showAlert('Case marked as reviewed successfully', 'success');
         
+        // Update the card UI
         card.dataset.changed = 'false';
         card.classList.remove('border-warning');
+        card.classList.add('border-success');
         
+        // Reload after a short delay
         setTimeout(() => {
             location.reload();
         }, 1000);
     })
     .catch(error => {
         console.error('Mark as reviewed error:', error);
-        // REPLACED: Browser alert with custom alert
         showAlert('Failed to mark as reviewed: ' + error.message, 'danger');
     })
     .finally(() => {
+        // Restore button state
         saveBtn.disabled = false;
         saveBtn.innerHTML = originalText;
     });
 }
 
-// UPDATED: Remove from reviewed - No browser alerts
-function removeFromReviewed(cino) {
-    // REPLACED: Browser confirm with custom confirm
-    showConfirm('Remove this case from reviewed? It will appear in pending cases again.', 'warning')
-    .then(confirmed => {
-        if (!confirmed) return;
-        
-        fetch('/toggle_case_selection', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                cinos: [cino],
-                action: 'remove_from_reviewed'
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                throw new Error(data.error);
+
+// UPDATED: Remove from reviewed and revert notes - WITH LOADING
+function removeFromReviewed(cino, clearNotes = true) {
+    const actionText = clearNotes ? 
+        'remove this case from reviewed and clear all notes' : 
+        'remove this case from reviewed and revert notes to previous state';
+    
+    showConfirm(`Are you sure you want to ${actionText}?`, 'warning')
+        .then(confirmed => {
+            if (!confirmed) return;
+
+            const button = event.target.closest('button');
+            const originalText = button ? button.innerHTML : '';
+
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Removing...';
             }
-            
-            // REPLACED: Browser alert with custom alert
-            showAlert('Case removed from reviewed section', 'success');
-            
-            setTimeout(() => {
-                location.reload();
-            }, 1000);
+
+            fetch('/remove_from_reviewed_and_revert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    cinos: [cino],
+                    clear_notes: clearNotes
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                const successMessage = clearNotes ? 
+                    'Case removed from reviewed and all notes cleared' : 
+                    'Case removed from reviewed and notes reverted to previous state';
+                
+                showAlert(successMessage, 'success');
+                
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            })
+            .catch(error => {
+                showAlert('Failed to remove: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                }
+            });
+        });
+}
+
+function removeFromReviewedComprehensive(cino, actionType = 'revert') {
+    const actionText = actionType === 'clear' ? 
+        'remove this case from reviewed and clear all user fields (notes, dates, user side)' : 
+        'remove this case from reviewed and restore all fields to their exact previous state';
+    
+    showConfirm(`Are you sure you want to ${actionText}?`, 'warning')
+        .then(confirmed => {
+            if (!confirmed) return;
+
+            const button = event.target.closest('button');
+            const originalText = button ? button.innerHTML : '';
+
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            }
+
+            fetch('/remove_from_reviewed_comprehensive', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    cinos: [cino],
+                    action_type: actionType
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                const successMessage = actionType === 'clear' ? 
+                    'Case removed from reviewed and all fields cleared' : 
+                    'Case removed from reviewed and all fields restored to previous state';
+                
+                showAlert(successMessage, 'success');
+                
+                // Show detailed restoration info if available
+                if (data.details) {
+                    console.log('Restoration details:', data.details);
+                }
+                
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            })
+            .catch(error => {
+                showAlert('Failed to process: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                }
+            });
+        });
+}
+
+function removeFromReviewedComplete(cino, actionType = 'restore_complete') {
+    const actionText = actionType === 'clear_user_data' ? 
+        'remove this case from reviewed and clear only user-added data (notes, dates, user side)' : 
+        'remove this case from reviewed and restore ALL fields (Purpose, Court, Type, Parties, etc.) to their exact previous state';
+    
+    showConfirm(`Are you sure you want to ${actionText}?`, 'warning')
+        .then(confirmed => {
+            if (!confirmed) return;
+
+            const button = event.target.closest('button');
+            const originalText = button ? button.innerHTML : '';
+
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Restoring...';
+            }
+
+            fetch('/remove_from_reviewed_comprehensive', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    cinos: [cino],
+                    action_type: actionType
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                const successMessage = actionType === 'clear_user_data' ? 
+                    'Case removed from reviewed and user data cleared' : 
+                    'Case removed from reviewed and ALL FIELDS restored to previous state';
+                
+                showAlert(successMessage, 'success');
+                
+                // Show which fields were restored
+                if (data.fields_restored && data.fields_restored.length > 0) {
+                    console.log('Fields restored:', data.fields_restored);
+                }
+                
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            })
+            .catch(error => {
+                showAlert('Failed to process: ' + error.message, 'danger');
+            })
+            .finally(() => {
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                }
+            });
+        });
+}
+
+
+// Updated bulk function with comprehensive options
+function bulkRemoveFromReviewedWithComprehensiveChoice() {
+    if (selectedCases.size === 0) {
+        showAlert('Please select cases first', 'warning');
+        return;
+    }
+
+    // Show a custom choice dialog with comprehensive options
+    showChoiceDialog(
+        'Remove from Reviewed Section',
+        'How do you want to handle ALL the fields (notes, dates, user side) for the selected cases?',
+        [
+            {
+                text: 'Clear All Fields',
+                class: 'btn-danger',
+                action: () => bulkRemoveFromReviewedComprehensive('clear')
+            },
+            {
+                text: 'Revert All Fields to Previous State',
+                class: 'btn-warning', 
+                action: () => bulkRemoveFromReviewedComprehensive('revert')
+            },
+            {
+                text: 'Legacy Mode (Notes Only)',
+                class: 'btn-info',
+                action: () => bulkRemoveFromReviewed(true) // Old function
+            },
+            {
+                text: 'Cancel',
+                class: 'btn-secondary',
+                action: () => {} // Do nothing
+            }
+        ]
+    );
+}
+
+function bulkRemoveFromReviewedComprehensive(actionType = 'revert') {
+    const caseArray = Array.from(selectedCases);
+    const actionText = actionType === 'clear' ? 'clear all user fields' : 'revert all fields to previous state';
+    
+    showLoadingOverlay(`Processing ${caseArray.length} cases - ${actionText}...`);
+
+    fetch('/remove_from_reviewed_comprehensive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            cinos: caseArray,
+            action_type: actionType
         })
-        .catch(error => {
-            // REPLACED: Browser alert with custom alert
-            showAlert('Failed to remove from reviewed: ' + error.message, 'danger');
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        showAlert(data.message, 'success');
+        clearSelection();
+        
+        setTimeout(() => {
+            location.reload();
+        }, 1500);
+    })
+    .catch(error => {
+        showAlert('Bulk operation failed: ' + error.message, 'danger');
+    })
+    .finally(() => {
+        hideLoadingOverlay();
+    });
+}
+
+// Enhanced choice dialog for better UX
+function showChoiceDialog(title, message, choices) {
+    return new Promise((resolve) => {
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop';
+        backdrop.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 9998;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        `;
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-content';
+        modal.style.cssText = `
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        `;
+        
+        const buttonsHtml = choices.map((choice, index) => 
+            `<button class="btn ${choice.class} mb-2 mx-1" id="choice${index}" style="min-width: 150px;">${choice.text}</button>`
+        ).join('');
+        
+        modal.innerHTML = `
+            <div class="mb-3">
+                <i class="fas fa-question-circle text-warning" style="font-size: 3rem;"></i>
+            </div>
+            <h5 class="mb-3">${title}</h5>
+            <p class="mb-4">${message}</p>
+            <div class="d-flex flex-column align-items-center">
+                ${buttonsHtml}
+            </div>
+        `;
+        
+        backdrop.appendChild(modal);
+        document.body.appendChild(backdrop);
+        
+        // Handle button clicks
+        choices.forEach((choice, index) => {
+            const btn = modal.querySelector(`#choice${index}`);
+            btn.addEventListener('click', () => {
+                backdrop.remove();
+                choice.action();
+                resolve(true);
+            });
+        });
+        
+        // Close on backdrop click
+        backdrop.addEventListener('click', (e) => {
+            if (e.target === backdrop) {
+                backdrop.remove();
+                resolve(false);
+            }
         });
     });
 }
+
+
+// Add a new function for bulk operations with clear choice
+function bulkRemoveFromReviewedWithChoice() {
+    if (selectedCases.size === 0) {
+        showAlert('Please select cases first', 'warning');
+        return;
+    }
+
+    // Show a custom choice dialog
+    showChoiceDialog(
+        'Remove from Reviewed Section',
+        'How do you want to handle the notes for the selected cases?',
+        [
+            {
+                text: 'Clear All Notes',
+                class: 'btn-danger',
+                action: () => bulkRemoveFromReviewed(true)
+            },
+            {
+                text: 'Revert to Previous Notes',
+                class: 'btn-warning', 
+                action: () => bulkRemoveFromReviewed(false)
+            },
+            {
+                text: 'Cancel',
+                class: 'btn-secondary',
+                action: () => {} // Do nothing
+            }
+        ]
+    );
+}
+
+function bulkRemoveFromReviewed(clearNotes = true) {
+    const caseArray = Array.from(selectedCases);
+    const actionText = clearNotes ? 'clear all notes' : 'revert notes to previous state';
+    
+    showLoadingOverlay(`Removing ${caseArray.length} cases from reviewed and ${actionText}...`);
+
+    fetch('/remove_from_reviewed_and_revert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            cinos: caseArray,
+            clear_notes: clearNotes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        showAlert(data.message, 'success');
+        clearSelection();
+        
+        setTimeout(() => {
+            location.reload();
+        }, 1500);
+    })
+    .catch(error => {
+        showAlert('Bulk removal failed: ' + error.message, 'danger');
+    })
+    .finally(() => {
+        hideLoadingOverlay();
+    });
+}
+
+
+// Loading overlay functions
+function showLoadingOverlay(message = 'Processing...') {
+    // Remove existing overlay if any
+    hideLoadingOverlay();
+    
+    const overlay = document.createElement('div');
+    overlay.id = 'loadingOverlay';
+    overlay.className = 'loading-overlay';
+    overlay.innerHTML = `
+        <div class="loading-content">
+            <div class="spinner-border text-primary mb-3" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <div class="loading-message">${message}</div>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Force show with slight delay for smooth transition
+    setTimeout(() => {
+        overlay.classList.add('show');
+    }, 10);
+}
+
+function hideLoadingOverlay() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            overlay.remove();
+        }, 300); // Wait for fade out transition
+    }
+}
+
+
+
+
 
 function toggleAllSelection(tabId) {
     console.log('Toggling selection for tab:', tabId);
@@ -575,36 +990,54 @@ function updateBulkActions() {
     }
 }
 
-// UPDATED: Execute bulk action - No browser alerts
+// UPDATED: Execute bulk action with revert option
+// UPDATED: Execute bulk action with loading states
 function executeBulkAction(action) {
     if (selectedCases.size === 0) {
-        // REPLACED: Browser alert with custom alert
         showAlert('Please select at least one case', 'warning');
         return;
     }
-    
+
     let confirmMessage = '';
+    let endpoint = '';
     let confirmType = 'warning';
-    
+    let loadingMessage = '';
+
     if (action === 'mark_reviewed') {
         confirmMessage = `Mark ${selectedCases.size} cases as reviewed?`;
+        endpoint = '/toggle_case_selection';
+        loadingMessage = `Marking ${selectedCases.size} cases as reviewed...`;
     } else if (action === 'remove_from_reviewed') {
-        confirmMessage = `Remove ${selectedCases.size} cases from reviewed section?`;
+        confirmMessage = `Remove ${selectedCases.size} cases from reviewed section and revert their notes to previous state?`;
+        endpoint = '/remove_from_reviewed_and_revert';
+        loadingMessage = `Removing ${selectedCases.size} cases from reviewed section...`;
     }
-    
-    // REPLACED: Browser confirm with custom confirm
+
     showConfirm(confirmMessage, confirmType).then(confirmed => {
         if (!confirmed) return;
-        
-        fetch('/toggle_case_selection', {
+
+        // Show loading overlay
+        showLoadingOverlay(loadingMessage);
+
+        // Disable bulk action buttons
+        const bulkButtons = document.querySelectorAll('#bulkActionsContainer button');
+        bulkButtons.forEach(btn => {
+            btn.disabled = true;
+            if (btn.innerHTML.includes(action === 'mark_reviewed' ? 'Mark' : 'Remove')) {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Processing...';
+            }
+        });
+
+        const requestBody = endpoint === '/toggle_case_selection' 
+            ? { cinos: Array.from(selectedCases), action: action }
+            : { cinos: Array.from(selectedCases) };
+
+        fetch(endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                cinos: Array.from(selectedCases),
-                action: action
-            })
+            body: JSON.stringify(requestBody)
         })
         .then(response => response.json())
         .then(data => {
@@ -613,10 +1046,9 @@ function executeBulkAction(action) {
             }
             
             const message = action === 'mark_reviewed' 
-                ? `Successfully marked ${data.marked_count || data.removed_count} cases as reviewed`
-                : `Successfully removed ${data.removed_count || data.marked_count} cases from reviewed section`;
+                ? `Successfully marked ${data.marked_count || data.success_count} cases as reviewed`
+                : `Successfully removed ${data.success_count} cases from reviewed section and reverted notes`;
                 
-            // REPLACED: Browser alert with custom alert
             showAlert(message, 'success');
             
             setTimeout(() => {
@@ -624,11 +1056,20 @@ function executeBulkAction(action) {
             }, 1500);
         })
         .catch(error => {
-            // REPLACED: Browser alert with custom alert
             showAlert('Bulk action failed: ' + error.message, 'danger');
+        })
+        .finally(() => {
+            // Hide loading overlay
+            hideLoadingOverlay();
+            
+            // Re-enable buttons (though page will reload)
+            bulkButtons.forEach(btn => {
+                btn.disabled = false;
+            });
         });
     });
 }
+
 
 // UPDATED: User side selection modal - No browser alerts
 function showUserSideModal(cino, currentSide) {
@@ -773,7 +1214,6 @@ function showCalendarActionModal() {
     modal.show();
 }
 
-// UPDATED: Execute calendar action - No browser alerts
 function executeCalendarAction(action, scope = 'selected') {
     console.log('📅 Executing calendar action:', action, 'scope:', scope);
     
@@ -782,14 +1222,13 @@ function executeCalendarAction(action, scope = 'selected') {
     
     if (scope === 'selected') {
         if (selectedCases.size === 0) {
-            // REPLACED: Browser alert with custom alert
             showAlert('No cases selected', 'warning');
             return;
         }
         
         selectedCases.forEach(cino => {
             const card = document.querySelector(`[data-cino="${cino}"]`);
-            const caseData = extractCaseDataFromCard(card);
+            const caseData = extractCaseDataFromCard(card, true); // Pass true to include form data
             if (caseData) {
                 casesToProcess.push(caseData);
             }
@@ -802,7 +1241,7 @@ function executeCalendarAction(action, scope = 'selected') {
         if (activeTabPane) {
             const allCards = activeTabPane.querySelectorAll('.case-card');
             allCards.forEach(card => {
-                const caseData = extractCaseDataFromCard(card);
+                const caseData = extractCaseDataFromCard(card, true); // Pass true to include form data
                 if (caseData) {
                     casesToProcess.push(caseData);
                 }
@@ -815,53 +1254,17 @@ function executeCalendarAction(action, scope = 'selected') {
     console.log('📊 Processing', casesToProcess.length, 'cases');
     
     if (casesToProcess.length === 0) {
-        // REPLACED: Browser alert with custom alert
         showAlert('No cases to process', 'warning');
         return;
     }
     
     if (action === 'create') {
-        showCalendarCreationProgress({
-            total_cases: casesToProcess.length,
-            cases_with_dates: casesToProcess.filter(c => c.date_next_list && c.date_next_list !== 'Not scheduled').length,
-            scope: scope
-        });
-        
-        fetch('/create_calendar_events', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                filter: filterType,
-                cases: casesToProcess,
-                scope: scope
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            hideCalendarCreationProgress();
-            
-            if (data.error) {
-                throw new Error(data.error);
-            }
-            
-            // REPLACED: Browser alert with custom alert
-            showAlert(`Calendar events created: ${data.created} created, ${data.updated || 0} updated`, 'success');
-            
-            const modal = bootstrap.Modal.getInstance(document.getElementById('calendarActionModal'));
-            if (modal) modal.hide();
-            
-            if (scope === 'selected' && currentTab === 'reviewed-cases') {
-                setTimeout(() => {
-                    removeSelectedFromReviewed();
-                }, 1500);
-            }
-        })
-        .catch(error => {
-            hideCalendarCreationProgress();
-            // REPLACED: Browser alert with custom alert
-            showAlert('Calendar creation failed: ' + error.message, 'danger');
+        // First, save all pending changes for selected cases
+        saveAllPendingChanges(casesToProcess).then(() => {
+            // Then create calendar events
+            createCalendarEvents(casesToProcess, filterType, scope);
+        }).catch(error => {
+            showAlert('Failed to save pending changes: ' + error.message, 'danger');
         });
         
     } else if (action === 'delete') {
@@ -869,7 +1272,6 @@ function executeCalendarAction(action, scope = 'selected') {
             ? `Delete calendar events for ${casesToProcess.length} selected cases?`
             : `Delete calendar events for all ${casesToProcess.length} cases in current tab?`;
             
-        // REPLACED: Browser confirm with custom confirm
         showConfirm(confirmMessage, 'danger').then(confirmed => {
             if (!confirmed) return;
             
@@ -889,18 +1291,145 @@ function executeCalendarAction(action, scope = 'selected') {
                     throw new Error(data.error);
                 }
                 
-                // REPLACED: Browser alert with custom alert
                 showAlert(`Deleted ${data.deleted} calendar events`, 'success');
                 
                 const modal = bootstrap.Modal.getInstance(document.getElementById('calendarActionModal'));
                 if (modal) modal.hide();
             })
             .catch(error => {
-                // REPLACED: Browser alert with custom alert
                 showAlert('Delete failed: ' + error.message, 'danger');
             });
         });
     }
+}
+
+function saveAllPendingChanges(casesToProcess) {
+    return new Promise((resolve, reject) => {
+        const savePromises = [];
+        
+        casesToProcess.forEach(caseData => {
+            const cino = caseData.cino;
+            const card = document.querySelector(`[data-cino="${cino}"]`);
+            const notesInput = card?.querySelector('.notes-input');
+            const hearingDateInput = card?.querySelector('input[name="next_hearing_date"]');
+            const decisionDateInput = card?.querySelector('input[name="date_of_decision"]');
+            
+            // Check if there are any unsaved changes
+            if (notesInput?.value.trim() || hearingDateInput?.value || decisionDateInput?.value) {
+                const saveData = {
+                    notes: notesInput?.value || '',
+                    next_hearing_date: hearingDateInput?.value || '',
+                    date_of_decision: decisionDateInput?.value || ''
+                };
+                
+                const savePromise = fetch(`/case/${cino}/update_notes_only`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(saveData)
+                }).then(response => response.json());
+                
+                savePromises.push(savePromise);
+            }
+        });
+        
+        if (savePromises.length === 0) {
+            resolve();
+            return;
+        }
+        
+        Promise.all(savePromises)
+            .then(results => {
+                const failed = results.filter(r => r.error);
+                if (failed.length > 0) {
+                    reject(new Error(`Failed to save ${failed.length} cases`));
+                } else {
+                    resolve();
+                }
+            })
+            .catch(reject);
+    });
+}
+
+function createCalendarEvents(casesToProcess, filterType, scope) {
+    showCalendarCreationProgress({
+        total_cases: casesToProcess.length,
+        cases_with_dates: casesToProcess.filter(c => c.date_next_list && c.date_next_list !== 'Not scheduled').length,
+        scope: scope
+    });
+    
+    fetch('/create_calendar_events', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            filter: filterType,
+            cases: casesToProcess,
+            scope: scope
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideCalendarCreationProgress();
+        
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        showAlert(`Calendar events created: ${data.created} created, ${data.updated || 0} updated`, 'success');
+        
+        const modal = bootstrap.Modal.getInstance(document.getElementById('calendarActionModal'));
+        if (modal) modal.hide();
+        
+        if (scope === 'selected' && currentTab === 'reviewed-cases') {
+            setTimeout(() => {
+                removeSelectedFromReviewed();
+            }, 1500);
+        }
+    })
+    .catch(error => {
+        hideCalendarCreationProgress();
+        showAlert('Calendar creation failed: ' + error.message, 'danger');
+    });
+}
+
+// UPDATED: Extract case data from card with form data option
+function extractCaseDataFromCard(card, includeFormData = false) {
+    if (!card) return null;
+    
+    const baseData = {
+        cino: card.dataset.cino || '',
+        case_no: card.dataset.caseNo || '',
+        petparty_name: card.dataset.petitioner || '',
+        resparty_name: card.dataset.respondent || '',
+        establishment_name: card.dataset.establishment || '',
+        date_next_list: card.dataset.nextDate || '',
+        state_name: card.dataset.state || '',
+        district_name: card.dataset.district || '',
+        purpose_name: card.dataset.purpose || '',
+        type_name: card.dataset.type || '',
+        court_no_desg_name: card.dataset.court || '',
+        user_side: card.dataset.userSide || '',
+        reg_no: card.dataset.regNo || '',
+        reg_year: card.dataset.regYear || ''
+    };
+    
+    if (includeFormData) {
+        // Get current form values if they exist
+        const notesInput = card.querySelector('.notes-input');
+        const hearingDateInput = card.querySelector('input[name="next_hearing_date"]');
+        const decisionDateInput = card.querySelector('input[name="date_of_decision"]');
+        const userSideSelect = card.querySelector('select[name="user_side"]');
+        
+        if (notesInput) baseData.user_notes = notesInput.value;
+        if (hearingDateInput) baseData.date_next_list = hearingDateInput.value || baseData.date_next_list;
+        if (decisionDateInput) baseData.date_of_decision = decisionDateInput.value;
+        if (userSideSelect) baseData.user_side = userSideSelect.value || baseData.user_side;
+    }
+    
+    return baseData;
 }
 
 function removeSelectedFromReviewed() {
@@ -1022,17 +1551,130 @@ function openCaseDetail(cino) {
     window.location.href = `/case/${cino}`;
 }
 
-// DEPRECATED: Old showAlert function replaced by creative alert system
-// This function is kept for backward compatibility but now uses the new system
+// Add these alert functions at the top of your app.js file
+
 function showAlert(message, type = 'info') {
-    // This will be handled by the new alert system automatically
-    if (window.alertSystem) {
-        return window.alertSystem.showAlert(message, type);
-    } else {
-        // Fallback for immediate use before alert system loads
-        console.log(`Alert (${type}): ${message}`);
-    }
+    // Remove existing alerts
+    const existingAlerts = document.querySelectorAll('.custom-alert');
+    existingAlerts.forEach(alert => alert.remove());
+    
+    // Create new alert
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} custom-alert`;
+    alertDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 300px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
+        animation: slideIn 0.3s ease-out;
+    `;
+    
+    alertDiv.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+            <span>${message}</span>
+            <button type="button" class="btn-close" aria-label="Close"></button>
+        </div>
+    `;
+    
+    // Add CSS animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    document.body.appendChild(alertDiv);
+    
+    // Close button functionality
+    const closeBtn = alertDiv.querySelector('.btn-close');
+    closeBtn.addEventListener('click', () => {
+        alertDiv.remove();
+    });
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        if (document.body.contains(alertDiv)) {
+            alertDiv.remove();
+        }
+    }, 5000);
 }
+
+function showConfirm(message, type = 'warning') {
+    return new Promise((resolve) => {
+        // Create backdrop
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop';
+        backdrop.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 9998;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        `;
+        
+        // Create modal
+        const modal = document.createElement('div');
+        modal.className = 'modal-content';
+        modal.style.cssText = `
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        `;
+        
+        modal.innerHTML = `
+            <div class="mb-3">
+                <i class="fas fa-exclamation-triangle text-${type}" style="font-size: 3rem;"></i>
+            </div>
+            <h5 class="mb-3">Confirm Action</h5>
+            <p class="mb-4">${message}</p>
+            <div class="d-flex gap-2 justify-content-center">
+                <button class="btn btn-${type}" id="confirmYes">Yes, Continue</button>
+                <button class="btn btn-secondary" id="confirmNo">Cancel</button>
+            </div>
+        `;
+        
+        backdrop.appendChild(modal);
+        document.body.appendChild(backdrop);
+        
+        // Handle button clicks
+        const yesBtn = modal.querySelector('#confirmYes');
+        const noBtn = modal.querySelector('#confirmNo');
+        
+        yesBtn.addEventListener('click', () => {
+            backdrop.remove();
+            resolve(true);
+        });
+        
+        noBtn.addEventListener('click', () => {
+            backdrop.remove();
+            resolve(false);
+        });
+        
+        // Close on backdrop click
+        backdrop.addEventListener('click', (e) => {
+            if (e.target === backdrop) {
+                backdrop.remove();
+                resolve(false);
+            }
+        });
+    });
+}
+
 
 // UPDATED: Delete all functionality - No browser alerts
 function showDeleteAllModal() {

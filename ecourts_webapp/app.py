@@ -68,23 +68,30 @@ def index():
 
 @app.route('/dashboard')
 def dashboard():
-    """Law Firm Case Management Dashboard - Clean Version"""
+    """Law Firm Case Management Dashboard - Enhanced Error Handling"""
     try:
         print("🏠 Accessing dashboard...")
         
         # Get all cases first
         cases = db.get_all_cases()
-        # sort cases by date_next_list desc, treating 'Not set' or None as far future
-        cases.sort(key=lambda x: (x.get('date_next_list') in [None, '', 'Not set'], x.get('date_next_list')), reverse=True)
-
+        
         if not cases:
             print("⚠️ No cases found, redirecting to upload page")
             return redirect(url_for('upload_page'))
+            
+        # Sort cases by date_next_list desc, treating 'Not set' or None as far future
+        cases.sort(key=lambda x: (x.get('date_next_list') in [None, '', 'Not set'], x.get('date_next_list')), reverse=True)
         
         # Get active and disposed cases using the new database method
-        active_disposed = db.get_active_and_disposed_cases()
-        active_cases = active_disposed.get('active_cases', [])
-        disposed_cases = active_disposed.get('disposed_cases', [])
+        try:
+            active_disposed = db.get_active_and_disposed_cases()
+            active_cases = active_disposed.get('active_cases', [])
+            disposed_cases = active_disposed.get('disposed_cases', [])
+        except Exception as active_error:
+            print(f"⚠️ Error getting active/disposed cases: {active_error}")
+            # Fallback: treat all cases as active
+            active_cases = cases
+            disposed_cases = []
         
         # Get different case categories
         changed_cases = db.get_changed_cases()
@@ -118,9 +125,15 @@ def dashboard():
         
     except Exception as e:
         print(f"💥 Dashboard error: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Return a more informative error page
         return render_template('error.html',
             error_message=str(e),
-            error_details="Dashboard failed to load.")
+            error_details="Dashboard failed to load. Please check the logs for more details.",
+            message="Dashboard Error"
+        ), 500
 
 @app.route('/upload_page')
 def upload_page():
@@ -187,28 +200,54 @@ def case_detail(cino):
 
 @app.route('/case/<cino>/update', methods=['POST'])
 def update_case(cino):
+    """Update case with all fields including next hearing date and date of decision - ENHANCED"""
     try:
         data = request.json
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
         notes = data.get('notes', '')
-        
-        # Use single transaction for both operations
-        success = db.update_case_notes_and_mark_reviewed(cino, notes)
-        
+        next_hearing_date = data.get('next_hearing_date', '')
+        date_of_decision = data.get('date_of_decision', '')
+
+        print(f"🔍 Updating case {cino} with notes: '{notes[:50]}...'")
+
+        # Validate date formats if provided
+        if next_hearing_date:
+            try:
+                datetime.strptime(next_hearing_date, '%Y-%m-%d')
+            except ValueError:
+                return jsonify({'error': 'Invalid next hearing date format. Use YYYY-MM-DD'}), 400
+
+        if date_of_decision:
+            try:
+                datetime.strptime(date_of_decision, '%Y-%m-%d')
+            except ValueError:
+                return jsonify({'error': 'Invalid date of decision format. Use YYYY-MM-DD'}), 400
+
+        # ENHANCED: Use the new method that handles everything in one transaction
+        success = db.update_case_notes_and_mark_reviewed(
+            cino=cino, 
+            notes=notes, 
+            next_hearing_date=next_hearing_date if next_hearing_date else None,
+            date_of_decision=date_of_decision if date_of_decision else None
+        )
+
         if success:
             return jsonify({
-                'message': 'Case updated and marked as reviewed successfully',
+                'message': 'Case updated successfully',
                 'has_notes': bool(notes.strip()),
-                'marked_as_reviewed': True
+                'marked_as_reviewed': True,
+                'next_hearing_updated': bool(next_hearing_date),
+                'date_of_decision_updated': bool(date_of_decision)
             })
         else:
             return jsonify({'error': 'Failed to update case'}), 500
-            
+
     except Exception as e:
         print(f"❌ Update case error: {e}")
         return jsonify({'error': f'Update failed: {str(e)}'}), 500
+
 
 @app.route('/case/<cino>/update_user_side', methods=['POST'])
 def update_user_side(cino):
@@ -1028,6 +1067,314 @@ def disposed_cases_api():
         return jsonify(active_disposed.get('disposed_cases', []))
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/case/<cino>/update_date_of_decision', methods=['POST'])
+def update_date_of_decision(cino):
+    """Update case date of decision"""
+    try:
+        data = request.json
+        date_of_decision = data.get('date_of_decision', '')
+        
+        if date_of_decision:
+            try:
+                from datetime import datetime
+                datetime.strptime(date_of_decision, '%Y-%m-%d')
+            except ValueError:
+                return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        
+        success = db.update_case_date_of_decision(cino, date_of_decision)
+        
+        if success:
+            return jsonify({
+                'message': 'Date of decision updated successfully',
+                'date_of_decision': date_of_decision or None
+            })
+        else:
+            return jsonify({'error': 'Failed to update date of decision'}), 500
+            
+    except Exception as e:
+        print(f"Update date of decision error: {e}")
+        return jsonify({'error': f'Update failed: {str(e)}'}), 500
+
+
+@app.template_filter('format_date_dmy')
+def format_date_dmy(date_str):
+    """Format date from YYYY-MM-DD to DD-MM-YYYY"""
+    # Handle None, empty, or invalid values
+    if not date_str or date_str in ['Not set', '', None, 'Not scheduled', 'null', 'undefined']:
+        return 'Not set'
+    
+    # Handle string representations of None/null
+    if str(date_str).lower() in ['none', 'null', 'undefined', 'nan']:
+        return 'Not set'
+    
+    try:
+        # Try to parse the date
+        date_obj = datetime.strptime(str(date_str), '%Y-%m-%d')
+        return date_obj.strftime('%d-%m-%Y')
+    except (ValueError, TypeError):
+        # If parsing fails, check if it's already in DD-MM-YYYY format
+        try:
+            date_obj = datetime.strptime(str(date_str), '%d-%m-%Y')
+            return date_obj.strftime('%d-%m-%Y')  # Already in correct format
+        except (ValueError, TypeError):
+            # If all parsing fails, return original if it looks like a date, otherwise 'Not set'
+            if len(str(date_str)) >= 8 and any(char.isdigit() for char in str(date_str)):
+                return str(date_str)  # Return original if it contains numbers
+            else:
+                return 'Not set'
+
+
+@app.template_filter('format_datetime')
+def format_datetime(datetime_str):
+    """Format datetime string"""
+    if not datetime_str:
+        return ''
+    try:
+        date_obj = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
+        return date_obj.strftime('%d-%m-%Y %H:%M')
+    except ValueError:
+        return datetime_str  # Return original if parsing fails
+
+
+@app.route('/case/<cino>/unmark_and_restore', methods=['POST'])
+def unmark_and_restore_case(cino):
+    """Unmark case as reviewed and restore previous state"""
+    try:
+        data = request.json
+        restore_data = data.get('restore_data')
+        
+        if restore_data:
+            # Restore the previous state
+            success = db.update_case_notes_without_marking_reviewed(cino, restore_data.get('notes', ''))
+            
+            # Update other fields if they were provided
+            if restore_data.get('next_hearing_date') and success:
+                success = db.update_case_hearing_date(cino, restore_data['next_hearing_date'])
+            
+            if restore_data.get('date_of_decision') and success:
+                success = db.update_case_date_of_decision(cino, restore_data['date_of_decision'])
+            
+            if restore_data.get('user_side') and success:
+                success = db.update_case_user_side(cino, restore_data['user_side'])
+        else:
+            # Just unmark without restoring specific data
+            success = db.restore_previous_notes_and_unmark_reviewed(cino)
+        
+        if success:
+            return jsonify({
+                'message': 'Case unmarked and restored successfully',
+                'restored': bool(restore_data)
+            })
+        else:
+            return jsonify({'error': 'Failed to unmark and restore case'}), 500
+            
+    except Exception as e:
+        print(f"❌ Unmark and restore error: {e}")
+        return jsonify({'error': f'Unmark and restore failed: {str(e)}'}), 500
+
+@app.route('/case/<cino>/update_notes_only', methods=['POST'])
+def update_notes_only(cino):
+    """Update case notes and other fields without marking as reviewed"""
+    try:
+        data = request.json
+        notes = data.get('notes', '')
+        next_hearing_date = data.get('next_hearing_date', '')
+        date_of_decision = data.get('date_of_decision', '')
+        
+        # Validate date formats if provided
+        if next_hearing_date:
+            try:
+                datetime.strptime(next_hearing_date, '%Y-%m-%d')
+            except ValueError:
+                return jsonify({'error': 'Invalid next hearing date format. Use YYYY-MM-DD'}), 400
+        
+        if date_of_decision:
+            try:
+                datetime.strptime(date_of_decision, '%Y-%m-%d')
+            except ValueError:
+                return jsonify({'error': 'Invalid date of decision format. Use YYYY-MM-DD'}), 400
+        
+        # Update notes WITHOUT marking as reviewed
+        success = db.update_case_notes_without_marking_reviewed(cino, notes)
+        
+        # Update next hearing date if provided
+        if next_hearing_date and success:
+            success = db.update_case_hearing_date_with_history(cino, next_hearing_date, notes)
+        
+        # Update date of decision if provided
+        if date_of_decision and success:
+            success = db.update_case_date_of_decision(cino, date_of_decision)
+        
+        if success:
+            return jsonify({
+                'message': 'Case updated successfully (kept in pending state)',
+                'has_notes': bool(notes.strip()),
+                'marked_as_reviewed': False,
+                'next_hearing_updated': bool(next_hearing_date),
+                'date_of_decision_updated': bool(date_of_decision)
+            })
+        else:
+            return jsonify({'error': 'Failed to update case'}), 500
+            
+    except Exception as e:
+        print(f"❌ Update notes only error: {e}")
+        return jsonify({'error': f'Update failed: {str(e)}'}), 500
+
+@app.route('/remove_from_reviewed_and_clear_notes', methods=['POST'])
+def remove_from_reviewed_and_clear_notes():
+    """Remove cases from reviewed section and completely clear their notes"""
+    try:
+        data = request.json
+        cinos = data.get('cinos', [])
+        
+        if not cinos:
+            return jsonify({'error': 'No cases specified'}), 400
+        
+        success_count = db.remove_from_reviewed_and_clear_notes(cinos)
+        
+        return jsonify({
+            'message': f'Successfully removed {success_count} case(s) from reviewed and cleared all notes',
+            'success_count': success_count,
+            'notes_cleared': True
+        })
+        
+    except Exception as e:
+        print(f"Remove from reviewed and clear notes error: {e}")
+        return jsonify({'error': f'Operation failed: {str(e)}'}), 500
+
+@app.route('/remove_from_reviewed_comprehensive', methods=['POST'])
+def remove_from_reviewed_comprehensive():
+    """Remove cases from reviewed section with COMPLETE field restoration"""
+    try:
+        data = request.json
+        cinos = data.get('cinos', [])
+        action_type = data.get('action_type', 'restore_complete')  # 'restore_complete' or 'clear_user_data'
+        
+        if not cinos:
+            return jsonify({'error': 'No cases specified'}), 400
+        
+        success_count = 0
+        failed_cases = []
+        details = []
+        
+        for cino in cinos:
+            if action_type == 'clear_user_data':
+                # Clear ONLY user-added data (notes, dates, user_side)
+                success = db.unmark_reviewed_and_clear_all_user_data(cino)
+                action_description = "cleared user-added data only"
+            else:
+                # Restore COMPLETE state (ALL fields to previous state)
+                success = db.restore_complete_case_state_and_unmark(cino)
+                action_description = "restored COMPLETE state (all fields)"
+            
+            if success:
+                success_count += 1
+                details.append(f"Case {cino}: {action_description}")
+            else:
+                failed_cases.append(cino)
+        
+        message = f'Successfully unmarked {success_count} case(s) and {action_description}'
+        if failed_cases:
+            message += f'. Failed: {failed_cases}'
+        
+        return jsonify({
+            'message': message,
+            'success_count': success_count,
+            'failed_count': len(failed_cases),
+            'action_type': action_type,
+            'comprehensive': True,
+            'details': details,
+            'fields_restored': ['case_no', 'petparty_name', 'resparty_name', 'establishment_name', 
+                              'state_name', 'district_name', 'purpose_name', 'type_name', 
+                              'court_no_desg_name', 'disp_name', 'user_notes', 'user_side', 
+                              'date_next_list', 'date_last_list', 'date_of_decision']
+        })
+        
+    except Exception as e:
+        print(f"Comprehensive remove from reviewed error: {e}")
+        return jsonify({'error': f'Operation failed: {str(e)}'}), 500
+    
+@app.route('/case/<cino>/unmark_comprehensive', methods=['POST'])
+def unmark_comprehensive(cino):
+    """Unmark single case with COMPLETE field restoration"""
+    try:
+        data = request.json
+        action_type = data.get('action_type', 'restore_complete')  # 'restore_complete' or 'clear_user_data'
+        
+        if action_type == 'clear_user_data':
+            success = db.unmark_reviewed_and_clear_all_user_data(cino)
+            action_description = "cleared user-added data only"
+        else:
+            success = db.restore_complete_case_state_and_unmark(cino)
+            action_description = "restored COMPLETE state (all fields)"
+        
+        if success:
+            return jsonify({
+                'message': f'Case unmarked and {action_description}',
+                'action_type': action_type,
+                'comprehensive': True,
+                'fields_restored': ['ALL FIELDS'] if action_type == 'restore_complete' else ['user_notes', 'user_side', 'date_of_decision']
+            })
+        else:
+            return jsonify({'error': 'Failed to unmark case comprehensively'}), 500
+            
+    except Exception as e:
+        print(f"❌ Comprehensive unmark error: {e}")
+        return jsonify({'error': f'Comprehensive unmark failed: {str(e)}'}), 500
+
+# Update the existing route to use comprehensive handling
+@app.route('/remove_from_reviewed_and_revert', methods=['POST'])
+def remove_from_reviewed_and_revert():
+    """Remove cases from reviewed section with comprehensive options"""
+    try:
+        data = request.json
+        cinos = data.get('cinos', [])
+        clear_notes = data.get('clear_notes', False)
+        comprehensive = data.get('comprehensive', True)  # Default to comprehensive
+        
+        if not cinos:
+            return jsonify({'error': 'No cases specified'}), 400
+        
+        if comprehensive:
+            # Use comprehensive handling - affects ALL fields
+            if clear_notes:
+                success_count = db.remove_from_reviewed_and_clear_all_fields(cinos)
+                action_description = "cleared all user fields"
+            else:
+                success_count = db.remove_from_reviewed_and_revert_all_fields(cinos) 
+                action_description = "reverted all fields to previous state"
+        else:
+            # Legacy handling - notes only
+            if clear_notes:
+                success_count = db.remove_from_reviewed_and_clear_notes(cinos)
+                action_description = "cleared notes only"
+            else:
+                success_count = 0
+                failed_cases = []
+                
+                for cino in cinos:
+                    result = db.restore_previous_notes_and_unmark_reviewed(cino)
+                    if result:
+                        success_count += 1
+                    else:
+                        failed_cases.append(cino)
+                        
+                action_description = "reverted notes to previous state"
+        
+        message = f'Successfully unmarked {success_count} case(s) and {action_description}'
+        
+        return jsonify({
+            'message': message,
+            'success_count': success_count,
+            'comprehensive': comprehensive,
+            'action_description': action_description
+        })
+        
+    except Exception as e:
+        print(f"Remove from reviewed error: {e}")
+        return jsonify({'error': f'Operation failed: {str(e)}'}), 500
+
 
 # Add other necessary routes...
 if __name__ == '__main__':

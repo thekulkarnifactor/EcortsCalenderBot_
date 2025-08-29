@@ -114,8 +114,8 @@
                 <button class="btn btn-success btn-sm" id="bulkMarkReviewedBtn" onclick="executeBulkAction('mark_reviewed')" disabled>
                     <i class="fas fa-check me-2"></i>Mark Reviewed
                 </button>
-                <button class="btn btn-warning btn-sm" id="bulkRemoveReviewedBtn" onclick="executeBulkAction('remove_from_reviewed')" disabled>
-                    <i class="fas fa-undo me-2"></i>Remove from Reviewed
+                <button class="btn btn-warning btn-sm" onclick="bulkRemoveFromReviewedWithComprehensiveChoice()">
+                    <i class="fas fa-undo"></i> Remove from Reviewed (Comprehensive)
                 </button>
                 <button class="btn btn-primary btn-sm" onclick="showCalendarActionModal()" id="bulkCalendarBtn" disabled>
                     <i class="fas fa-calendar me-2"></i>Calendar Actions
@@ -184,6 +184,12 @@
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <div class="form-check">
                                 <input class="form-check-input case-selection" type="checkbox" data-cino="{{ case.cino }}" onchange="updateCaseSelection()">
+                                <style>
+                                    .cino-hidden {
+                                        display: none !important;
+                                    }
+                                </style>
+                                <span class="cino-hidden">{{ case.case_no or 'N/A' }}</span>
                                 <!-- <label class="form-check-label fw-bold">
                                     {{ case.case_no or 'N/A' }}
                                 </label> -->
@@ -193,7 +199,26 @@
                             <span class="badge bg-success text-white">Reviewed</span> {% endif %}
                         </div>
                         <div class="card-body">
-                            <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6>
+                            <!-- add Petitioner or Respondent name here which is choosen -->
+                            {% if case.user_side == 'petitioner' %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Petitioner (Your Side):</small> -->
+                                <div class="fw-bold text-primary">{{ case.petparty_name or 'N/A' }}</div>
+                            </div>
+                            {% elif case.user_side == 'respondent' %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Respondent (Your Side):</small> -->
+                                <div class="fw-bold text-primary">{{ case.resparty_name or 'N/A' }}</div>
+                            </div>
+                            {% else %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Choose your side:</small> -->
+                                <button class="btn btn-outline-primary btn-sm me-1" onclick="showUserSideModal('{{ case.cino }}', 'petitioner')">Choose your side:</button>
+                                <!-- <button class="btn btn-outline-secondary btn-sm" onclick="showUserSideModal('{{ case.cino }}', 'respondent')">Respondent</button> -->
+                            </div>
+                            {% endif %}
+
+                            <!-- <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6> -->
                             <div class="case-parties row mb-2">
                                 <div class="col-6">
                                     <small class="text-muted">Petitioner:</small>
@@ -205,18 +230,26 @@
                                 </div>
                             </div>
                             <div class="case-details mb-2">
-                                <small class="text-muted">Court:</small>
-                                <div>{{ case.court_no_desg_name or 'N/A' }}</div>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <small class="text-muted">Court:</small>
+                                        <div>{{ case.court_no_desg_name or 'N/A' }}</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted">Type:</small>
+                                        <div>{{ case.type_name or 'N/A' }}</div>
+                                    </div>
+                                </div>
+                                <br />
                                 <small class="text-muted mt-1">Next Hearing:</small>
-                                <div class="input-group input-group-sm">
-                                    <input type="date" class="form-control form-control-sm hearing-date-input" value="{{ case.date_next_list or '' }}" data-cino="{{ case.cino }}" onchange="updateHearingDate('{{ case.cino }}', this.value)">
+                                <div class="input-group input-group-sm hearing-date-input">
+                                    <input type="date" class="form-control form-control-sm" value="{{ case.date_next_list or '' }}" data-cino="{{ case.cino }}" onchange="updateHearingDate('{{ case.cino }}', this.value)">
                                     <button class="btn btn-outline-secondary btn-sm" type="button" onclick="clearHearingDate('{{ case.cino }}')">
                                         <i class="fas fa-times"></i>
                                     </button>
                                 </div>
-                                <small class="text-muted mt-1">Type:</small>
-                                <div>{{ case.type_name or 'N/A' }}</div>
                             </div>
+
                             <div class="mb-2">
                                 <small class="text-muted">Notes:</small>
                                 <textarea class="form-control notes-input" rows="2" placeholder="Add your notes here...">{{ case.user_notes or '' }}</textarea>
@@ -231,7 +264,7 @@
                                     <button class="btn btn-success btn-sm" onclick="markAsReviewed('{{ case.cino }}')">
                                         <i class="fas fa-check me-2"></i> Mark Reviewed
                                     </button> {% else %}
-                                    <button class="btn btn-outline-warning btn-sm" onclick="removeFromReviewed('{{ case.cino }}')">
+                                    <button class="btn btn-outline-warning btn-sm" onclick="removeFromReviewedComplete('{{ case.cino }}', 'restore_complete')">
                                         <i class="fas fa-undo me-2"></i> Unmark
                                     </button> {% endif %}
                                     <!-- NEW: Save Changes Button -->
@@ -239,13 +272,13 @@
                                         <i class="fas fa-save me-2"></i> Save Changes
                                     </button> -->
                                 </div>
-                                <div class="d-flex align-items-center gap-2">
+                                <!-- <div class="d-flex align-items-center gap-2">
                                     {% if case.user_side %}
                                     <span class="badge bg-info">{{ case.user_side.title() }}</span> {% else %}
                                     <button class="btn btn-outline-secondary btn-sm" onclick="showUserSideModal('{{ case.cino }}', '')">
                 <i class="fas fa-user-tag me-2"></i> Set Side
             </button> {% endif %}
-                                </div>
+                                </div> -->
                             </div>
                         </div>
 
@@ -265,14 +298,40 @@
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <div class="form-check">
                                 <input class="form-check-input case-selection" type="checkbox" data-cino="{{ case.cino }}" onchange="updateCaseSelection()">
-                                <label class="form-check-label fw-bold">
+                                <style>
+                                    .cino-hidden {
+                                        display: none !important;
+                                    }
+                                </style>
+                                <span class="cino-hidden">{{ case.case_no or 'N/A' }}</span>
+                                <!-- <label class="form-check-label fw-bold">
                                     {{ case.case_no or 'N/A' }}
-                                </label>
+                                </label> -->
                             </div>
                             <span class="badge bg-success text-white">Active</span>
                         </div>
                         <div class="card-body">
-                            <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6>
+                            {% if case.user_side == 'petitioner' %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Petitioner (Your Side):</small> -->
+                                <div class="fw-bold text-primary">{{ case.petparty_name or 'N/A' }}</div>
+                            </div>
+                            {% elif case.user_side == 'respondent' %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Respondent (Your Side):</small> -->
+                                <div class="fw-bold text-primary">{{ case.resparty_name or 'N/A' }}</div>
+                            </div>
+                            {% else %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Choose your side:</small> -->
+                                <button class="btn btn-outline-primary btn-sm me-1" onclick="showUserSideModal('{{ case.cino }}', 'petitioner')">Choose your side:</button>
+                                <!-- <button class="btn btn-outline-secondary btn-sm" onclick="showUserSideModal('{{ case.cino }}', 'respondent')">Respondent</button> -->
+                            </div>
+                            {% endif %}
+
+
+                            <!-- <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6> -->
+
                             <div class="case-parties row mb-2">
                                 <div class="col-6">
                                     <small class="text-muted">Petitioner:</small>
@@ -336,14 +395,38 @@
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <div class="form-check">
                                 <input class="form-check-input case-selection" type="checkbox" data-cino="{{ case.cino }}" onchange="updateCaseSelection()">
-                                <label class="form-check-label fw-bold">
+                                <style>
+                                    .cino-hidden {
+                                        display: none !important;
+                                    }
+                                </style>
+                                <span class="cino-hidden">{{ case.case_no or 'N/A' }}</span>
+                                <!-- <label class="form-check-label fw-bold">
                                     {{ case.case_no or 'N/A' }}
-                                </label>
+                                </label> -->
                             </div>
                             <span class="badge bg-warning text-dark">Changed</span>
                         </div>
                         <div class="card-body">
-                            <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6>
+                            {% if case.user_side == 'petitioner' %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Petitioner (Your Side):</small> -->
+                                <div class="fw-bold text-primary">{{ case.petparty_name or 'N/A' }}</div>
+                            </div>
+                            {% elif case.user_side == 'respondent' %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Respondent (Your Side):</small> -->
+                                <div class="fw-bold text-primary">{{ case.resparty_name or 'N/A' }}</div>
+                            </div>
+                            {% else %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Choose your side:</small> -->
+                                <button class="btn btn-outline-primary btn-sm me-1" onclick="showUserSideModal('{{ case.cino }}', 'petitioner')">Choose your side:</button>
+                                <!-- <button class="btn btn-outline-secondary btn-sm" onclick="showUserSideModal('{{ case.cino }}', 'respondent')">Respondent</button> -->
+                            </div>
+                            {% endif %}
+
+                            <!-- <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6> -->
                             <div class="case-parties row mb-2">
                                 <div class="col-6">
                                     <small class="text-muted">Petitioner:</small>
@@ -407,14 +490,37 @@
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <div class="form-check">
                                 <input class="form-check-input case-selection" type="checkbox" data-cino="{{ case.cino }}" onchange="updateCaseSelection()">
-                                <label class="form-check-label fw-bold">
+                                <style>
+                                    .cino-hidden {
+                                        display: none !important;
+                                    }
+                                </style>
+                                <span class="cino-hidden">{{ case.case_no or 'N/A' }}</span>
+                                <!-- <label class="form-check-label fw-bold">
                                     {{ case.case_no or 'N/A' }}
-                                </label>
+                                </label> -->
                             </div>
                             <span class="badge bg-success text-white">Reviewed</span>
                         </div>
                         <div class="card-body">
-                            <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6>
+                            {% if case.user_side == 'petitioner' %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Petitioner (Your Side):</small> -->
+                                <div class="fw-bold text-primary">{{ case.petparty_name or 'N/A' }}</div>
+                            </div>
+                            {% elif case.user_side == 'respondent' %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Respondent (Your Side):</small> -->
+                                <div class="fw-bold text-primary">{{ case.resparty_name or 'N/A' }}</div>
+                            </div>
+                            {% else %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Choose your side:</small> -->
+                                <button class="btn btn-outline-primary btn-sm me-1" onclick="showUserSideModal('{{ case.cino }}', 'petitioner')">Choose your side:</button>
+                                <!-- <button class="btn btn-outline-secondary btn-sm" onclick="showUserSideModal('{{ case.cino }}', 'respondent')">Respondent</button> -->
+                            </div>
+                            {% endif %}
+                            <!-- <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6> -->
                             <div class="case-parties row mb-2">
                                 <div class="col-6">
                                     <small class="text-muted">Petitioner:</small>
@@ -449,7 +555,7 @@
                                     <button class="btn btn-primary btn-sm" onclick="openCaseDetail('{{ case.cino }}')">
                                         <i class="fas fa-eye me-2"></i> View
                                     </button>
-                                    <button class="btn btn-outline-warning btn-sm" onclick="removeFromReviewed('{{ case.cino }}')">
+                                    <button class="btn btn-outline-warning btn-sm" onclick="removeFromReviewedComplete('{{ case.cino }}', 'restore_complete')">
                                         <i class="fas fa-undo me-2"></i> Unmark
                                     </button>
                                 </div>
@@ -478,14 +584,37 @@
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <div class="form-check">
                                 <input class="form-check-input case-selection" type="checkbox" data-cino="{{ case.cino }}" onchange="updateCaseSelection()">
-                                <label class="form-check-label fw-bold">
+                                <style>
+                                    .cino-hidden {
+                                        display: none !important;
+                                    }
+                                </style>
+                                <span class="cino-hidden">{{ case.case_no or 'N/A' }}</span>
+                                <!-- <label class="form-check-label fw-bold">
                                     {{ case.case_no or 'N/A' }}
-                                </label>
+                                </label> -->
                             </div>
                             <span class="badge bg-info text-white">Upcoming</span>
                         </div>
                         <div class="card-body">
-                            <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6>
+                            {% if case.user_side == 'petitioner' %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Petitioner (Your Side):</small> -->
+                                <div class="fw-bold text-primary">{{ case.petparty_name or 'N/A' }}</div>
+                            </div>
+                            {% elif case.user_side == 'respondent' %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Respondent (Your Side):</small> -->
+                                <div class="fw-bold text-primary">{{ case.resparty_name or 'N/A' }}</div>
+                            </div>
+                            {% else %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Choose your side:</small> -->
+                                <button class="btn btn-outline-primary btn-sm me-1" onclick="showUserSideModal('{{ case.cino }}', 'petitioner')">Choose your side:</button>
+                                <!-- <button class="btn btn-outline-secondary btn-sm" onclick="showUserSideModal('{{ case.cino }}', 'respondent')">Respondent</button> -->
+                            </div>
+                            {% endif %}
+                            <!-- <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6> -->
                             <div class="case-parties row mb-2">
                                 <div class="col-6">
                                     <small class="text-muted">Petitioner:</small>
@@ -523,7 +652,7 @@
                                     <button class="btn btn-success btn-sm" onclick="markAsReviewed('{{ case.cino }}')">
                                             <i class="fas fa-check me-2"></i> Mark Reviewed
                                         </button> {% else %}
-                                    <button class="btn btn-outline-warning btn-sm" onclick="removeFromReviewed('{{ case.cino }}')">
+                                    <button class="btn btn-outline-warning btn-sm" onclick="removeFromReviewedComplete('{{ case.cino }}', 'restore_complete')">
                                             <i class="fas fa-undo me-2"></i> Unmark
                                         </button> {% endif %}
                                 </div>
@@ -552,14 +681,37 @@
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <div class="form-check">
                                 <input class="form-check-input case-selection" type="checkbox" data-cino="{{ case.cino }}" onchange="updateCaseSelection()">
-                                <label class="form-check-label fw-bold">
+                                <style>
+                                    .cino-hidden {
+                                        display: none !important;
+                                    }
+                                </style>
+                                <span class="cino-hidden">{{ case.case_no or 'N/A' }}</span>
+                                <!-- <label class="form-check-label fw-bold">
                                     {{ case.case_no or 'N/A' }}
-                                </label>
+                                </label> -->
                             </div>
                             <span class="badge bg-danger text-white">Disposed</span>
                         </div>
                         <div class="card-body">
-                            <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6>
+                            {% if case.user_side == 'petitioner' %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Petitioner (Your Side):</small> -->
+                                <div class="fw-bold text-primary">{{ case.petparty_name or 'N/A' }}</div>
+                            </div>
+                            {% elif case.user_side == 'respondent' %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Respondent (Your Side):</small> -->
+                                <div class="fw-bold text-primary">{{ case.resparty_name or 'N/A' }}</div>
+                            </div>
+                            {% else %}
+                            <div class="mb-2">
+                                <!-- <small class="text-muted">Choose your side:</small> -->
+                                <button class="btn btn-outline-primary btn-sm me-1" onclick="showUserSideModal('{{ case.cino }}', 'petitioner')">Choose your side:</button>
+                                <!-- <button class="btn btn-outline-secondary btn-sm" onclick="showUserSideModal('{{ case.cino }}', 'respondent')">Respondent</button> -->
+                            </div>
+                            {% endif %}
+                            <!-- <h6 class="card-title text-primary">{{ case.case_no or 'N/A' }}</h6> -->
                             <div class="case-parties row mb-2">
                                 <div class="col-6">
                                     <small class="text-muted">Petitioner:</small>

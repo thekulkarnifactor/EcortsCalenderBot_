@@ -187,29 +187,34 @@ def create_google_calendar_events_for_cases(
             existing_events = get_existing_court_events_with_cino_mapping(service, calendar_id)
             existing_events_map = {}
             
-            # Create a more robust mapping
+            # Create a more robust mapping with multiple fallback strategies
             for event in existing_events:
                 description = event.get('description', '')
                 summary = event.get('summary', '')
                 
-                # Extract CINO from description
-                cino_match = re.search(r'CINO:\s*([^\n\r]+)', description, re.IGNORECASE)
-                if cino_match:
-                    cino = cino_match.group(1).strip()
-                    existing_events_map[cino] = event
-                    print(f"📍 Mapped existing event: CINO {cino} -> Event ID {event.get('id', 'Unknown')[:10]}...")
-                
-                # Also try to match by case number if CINO fails
+                # Strategy 1: Extract formatted case number (PIL/123/2024 format)
                 case_no_match = re.search(r'Case No:\s*([^\n\r]+)', description, re.IGNORECASE)
-                if case_no_match and not cino_match:
+                if case_no_match:
                     case_no = case_no_match.group(1).strip()
-                    # Use case number as backup key
-                    backup_key = f"case_no_{case_no}"
-                    existing_events_map[backup_key] = event
-                    print(f"📍 Backup mapping: Case No {case_no} -> Event ID {event.get('id', 'Unknown')[:10]}...")
-            
-            print(f"📊 Created mapping for {len(existing_events_map)} existing court events")
-            
+                    existing_events_map[f"case_no_{case_no}"] = event
+                    print(f"📍 Mapped by Case No: {case_no} -> Event ID {event.get('id', 'Unknown')[:10]}...")
+                
+                # Strategy 2: Extract parties from summary (Petitioner vs Respondent)
+                if ' vs ' in summary.lower():
+                    parties_key = summary.lower().replace(' ', '_')
+                    existing_events_map[f"parties_{parties_key}"] = event
+                    print(f"📍 Mapped by Parties: {summary[:30]}... -> Event ID {event.get('id', 'Unknown')[:10]}...")
+                
+                # Strategy 3: Extract type/reg_no/reg_year pattern
+                type_reg_match = re.search(r'(\w+)/(\d+)/(\d{4})', description)
+                if type_reg_match:
+                    type_name, reg_no, reg_year = type_reg_match.groups()
+                    type_reg_key = f"{type_name}/{reg_no}/{reg_year}"
+                    existing_events_map[f"type_reg_{type_reg_key}"] = event
+                    print(f"📍 Mapped by Type/Reg: {type_reg_key} -> Event ID {event.get('id', 'Unknown')[:10]}...")
+
+            print(f"📊 Created mapping for {len(existing_events_map)} existing court events with multiple strategies")
+
         except Exception as existing_error:
             print(f"⚠️ Warning: Could not check existing events: {existing_error}")
             existing_events_map = {}
@@ -263,10 +268,10 @@ def create_google_calendar_events_for_cases(
 
                 # FIXED: Get user side properly - check for actual value
                 user_side = case.get('user_side', '').strip()
-                if user_side and user_side.lower() not in ['', 'not set', 'none', 'null']:
-                    description_parts.append(f"User Side: {user_side.title()}")
-                else:
-                    description_parts.append("User Side: Not set")
+                # if user_side and user_side.lower() not in ['', 'not set', 'none', 'null']:
+                #     description_parts.append(f"User Side: {user_side.title()}")
+                # else:
+                #     description_parts.append("User Side: Not set")
 
                 # FIXED: Format case number as type_name/reg_no/reg_year
                 type_name = case.get('type_name', '').strip()
@@ -280,12 +285,13 @@ def create_google_calendar_events_for_cases(
                     formatted_case_no = case.get('case_no', '')
 
                 description_parts.append(f"Case No: {formatted_case_no}")
-                description_parts.append(f"CINO: {case.get('cino', '')}")
-                description_parts.append(f"Establishment: {case.get('establishment_name', 'N/A')}")
-                description_parts.append(f"Purpose: {case.get('purpose_name', 'N/A')}")
+                description_parts.append(f"Case Type: {case.get('case_type_name', 'N/A')}")
+                description_parts.append(f"Court/Judge: {case.get('court_no_desg_name', 'N/A')}")
+                description_parts.append(f"Next Stage: {case.get('purpose_name', 'N/A')}")
+                # description_parts.append(f"CINO: {case.get('cino', '')}")
+                # description_parts.append(f"Establishment: {case.get('establishment_name', 'N/A')}")
 
                 court_info = case.get('court_no_desg_name', 'N/A')
-                description_parts.append(f"Court/Judge: {court_info}")
 
                 # FIXED: Location handling
                 state = case.get('state_name', '').strip()
@@ -298,7 +304,7 @@ def create_google_calendar_events_for_cases(
                     location = district
                 else:
                     location = "N/A"
-                description_parts.append(f"Location: {location}")
+                # description_parts.append(f"Location: {location}")
 
                 # FIXED: Notes handling with proper formatting
                 user_notes = case.get('user_notes', '').strip()
@@ -331,9 +337,35 @@ def create_google_calendar_events_for_cases(
 
                 # FIXED LOGIC: Check if event exists and update or create
                 existing_event = None
+                match_strategy = None
+
+                # Strategy 1: Match by formatted case number
+                formatted_case_no = f"{type_name}/{reg_no}/{reg_year}" if type_name and reg_no and reg_year else case_no
+                if f"case_no_{formatted_case_no}" in existing_events_map:
+                    existing_event = existing_events_map[f"case_no_{formatted_case_no}"]
+                    match_strategy = f"Case No: {formatted_case_no}"
+
+                # Strategy 2: Match by original case number
+                elif f"case_no_{case_no}" in existing_events_map:
+                    existing_event = existing_events_map[f"case_no_{case_no}"]
+                    match_strategy = f"Original Case No: {case_no}"
+
+                # Strategy 3: Match by parties (petitioner vs respondent)
+                # elif petitioner and respondent:
+                #     parties_key = f"{petitioner} vs {respondent}".lower().replace(' ', '_')
+                #     if f"parties_{parties_key}" in existing_events_map:
+                #         existing_event = existing_events_map[f"parties_{parties_key}"]
+                #         match_strategy = f"Parties: {petitioner} vs {respondent}"
+
+                # Strategy 4: Match by type/reg pattern
+                elif type_name and reg_no and reg_year:
+                    type_reg_key = f"{type_name}/{reg_no}/{reg_year}"
+                    if f"type_reg_{type_reg_key}" in existing_events_map:
+                        existing_event = existing_events_map[f"type_reg_{type_reg_key}"]
+                        match_strategy = f"Type/Reg: {type_reg_key}"
                 
                 # Try to find existing event by CINO first
-                if cino in existing_events_map:
+                elif cino in existing_events_map:
                     existing_event = existing_events_map[cino]
                     print(f"🔍 Found existing event by CINO: {cino}")
                 
@@ -343,37 +375,68 @@ def create_google_calendar_events_for_cases(
                     print(f"🔍 Found existing event by Case No: {case_no}")
                 
                 if existing_event:
-                    # UPDATE existing event
+                    print(f"🔍 Found existing event using {match_strategy}")
+                     # UPDATE existing event
                     event_id = existing_event['id']
                     try:
-                        print(f"🔄 Updating existing event: {event_title}")
+                        print(f"🔄 Updating existing event: {event_title} (Strategy: {match_strategy})")
                         updated_event = service.events().update(
                             calendarId=calendar_id,
                             eventId=event_id,
                             body=event_body
                         ).execute()
-                        
                         print(f"✅ Updated event #{updated_count + 1}: {event_title} on {event_date}")
                         updated_count += 1
-                        
                     except Exception as update_error:
                         print(f"❌ Failed to update event for case {case_no}: {update_error}")
                         failed_count += 1
                 else:
                     # CREATE new event
                     try:
-                        print(f"➕ Creating new event: {event_title}")
+                        print(f"➕ Creating new event: {event_title} (No existing match found)")
                         created_event = service.events().insert(
                             calendarId=calendar_id,
                             body=event_body
                         ).execute()
-                        
                         print(f"✅ Created event #{created_count + 1}: {event_title} on {event_date}")
                         created_count += 1
-                        
                     except Exception as create_error:
                         print(f"❌ Failed to create event for case {case_no}: {create_error}")
                         failed_count += 1
+                    print(f"➕ No existing event found for case {case_no}, will create new")
+
+                # if existing_event:
+                #     # UPDATE existing event
+                #     event_id = existing_event['id']
+                #     try:
+                #         print(f"🔄 Updating existing event: {event_title}")
+                #         updated_event = service.events().update(
+                #             calendarId=calendar_id,
+                #             eventId=event_id,
+                #             body=event_body
+                #         ).execute()
+                        
+                #         print(f"✅ Updated event #{updated_count + 1}: {event_title} on {event_date}")
+                #         updated_count += 1
+                        
+                #     except Exception as update_error:
+                #         print(f"❌ Failed to update event for case {case_no}: {update_error}")
+                #         failed_count += 1
+                # else:
+                #     # CREATE new event
+                #     try:
+                #         print(f"➕ Creating new event: {event_title}")
+                #         created_event = service.events().insert(
+                #             calendarId=calendar_id,
+                #             body=event_body
+                #         ).execute()
+                        
+                #         print(f"✅ Created event #{created_count + 1}: {event_title} on {event_date}")
+                #         created_count += 1
+                        
+                #     except Exception as create_error:
+                #         print(f"❌ Failed to create event for case {case_no}: {create_error}")
+                #         failed_count += 1
 
                 # Progress callback
                 if progress_callback:
@@ -426,14 +489,13 @@ def create_google_calendar_events_for_cases(
 def get_existing_court_events_with_cino_mapping(service, calendar_id='primary'):
     """
     Get existing court events with better CINO extraction for mapping.
-    FIXED: Enhanced pattern matching for better event identification.
+    ENHANCED: Better pattern matching and case number fallback.
     """
     try:
         events = []
         page_token = None
-        
         print("📋 Fetching existing court events for mapping...")
-        
+
         while True:
             events_result = service.events().list(
                 calendarId=calendar_id,
@@ -445,11 +507,11 @@ def get_existing_court_events_with_cino_mapping(service, calendar_id='primary'):
 
             batch_events = events_result.get('items', [])
             print(f"📊 Checking {len(batch_events)} events in this batch...")
-            
+
             for event in batch_events:
                 summary = event.get('summary', '') or ''
                 description = event.get('description', '') or ''
-                
+
                 # Enhanced court event detection
                 is_court_event = (
                     # Title patterns
@@ -457,15 +519,17 @@ def get_existing_court_events_with_cino_mapping(service, calendar_id='primary'):
                     ' v. ' in summary.lower() or
                     ' v ' in summary.lower() or
                     'case ' in summary.lower() or
-                    # Description patterns
-                    'cino:' in description.lower() or
+                    # Description patterns - ENHANCED
                     'case no:' in description.lower() or
-                    'establishment:' in description.lower() or
                     'court/judge:' in description.lower() or
-                    'user side:' in description.lower() or
-                    'purpose:' in description.lower()
+                    'next stage:' in description.lower() or
+                    'case type:' in description.lower() or
+                    # Look for formatted case numbers like "PIL/123/2024"
+                    re.search(r'\w+/\d+/\d{4}', description) or
+                    # Look for petitioner vs respondent pattern in description
+                    ' vs ' in description.lower()
                 )
-                
+
                 if is_court_event:
                     events.append({
                         'id': event.get('id'),
@@ -475,12 +539,6 @@ def get_existing_court_events_with_cino_mapping(service, calendar_id='primary'):
                         'end': event.get('end', {}),
                         'reminders': event.get('reminders', {})
                     })
-                    
-                    # Debug: Show what we found
-                    if len(events) <= 5:
-                        cino_match = re.search(r'CINO:\s*([^\n\r]+)', description, re.IGNORECASE)
-                        cino = cino_match.group(1).strip() if cino_match else 'No CINO'
-                        print(f"🎯 Found court event #{len(events)}: '{summary[:30]}...' CINO: {cino}")
 
             page_token = events_result.get('nextPageToken')
             if not page_token:
