@@ -614,7 +614,7 @@ function bulkRemoveFromReviewedWithComprehensiveChoice() {
             {
                 text: 'Legacy Mode (Notes Only)',
                 class: 'btn-info',
-                action: () => bulkRemoveFromReviewed(true) // Old function
+                action: () => bulkRemoveFromReviewed(true) 
             },
             {
                 text: 'Cancel',
@@ -795,31 +795,69 @@ function bulkRemoveFromReviewed(clearNotes = true) {
     });
 }
 
+// Clear all selected cases
+function clearSelection() {
+    selectedCases.clear();
+    
+    // Uncheck all checkboxes
+    document.querySelectorAll('.case-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    // Update UI elements
+    updateBulkActions();
+    hideBulkMenu();
+    
+    // Reset toggle buttons
+    document.querySelectorAll('[data-toggle-select] span').forEach(span => {
+        span.textContent = 'Select All';
+        span.parentElement.classList.remove('btn-primary');
+        span.parentElement.classList.add('btn-outline-primary');
+    });
+    
+    console.log('Selection cleared');
+}
+
 
 // Loading overlay functions
 function showLoadingOverlay(message = 'Processing...') {
-    // Remove existing overlay if any
-    hideLoadingOverlay();
-    
     const overlay = document.createElement('div');
     overlay.id = 'loadingOverlay';
-    overlay.className = 'loading-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        z-index: 9999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        font-size: 18px;
+    `;
+    
     overlay.innerHTML = `
-        <div class="loading-content">
-            <div class="spinner-border text-primary mb-3" role="status">
+        <div style="text-align: center;">
+            <div class="spinner-border text-light mb-3" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
-            <div class="loading-message">${message}</div>
+            <div>${message}</div>
         </div>
     `;
     
     document.body.appendChild(overlay);
-    
-    // Force show with slight delay for smooth transition
-    setTimeout(() => {
-        overlay.classList.add('show');
-    }, 10);
 }
+
+// Hide loading overlay
+function hideLoadingOverlay() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.remove();
+    }
+}
+
 
 function hideLoadingOverlay() {
     const overlay = document.getElementById('loadingOverlay');
