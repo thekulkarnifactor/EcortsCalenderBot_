@@ -22,7 +22,7 @@
 
     <!-- Add Case Form -->
     <div class="row justify-content-center">
-        <div class="col-lg-8">
+        <div class="col-lg-10">
             <div class="card border-0 shadow-lg rounded-4">
                 <div class="card-header bg-gradient bg-primary text-white py-4 rounded-top-4">
                     <h4 class="card-title mb-0">
@@ -32,6 +32,11 @@
                 <div class="card-body p-5">
                     <form id="addCaseForm" autocomplete="off">
                         <div class="row g-3">
+                            <!-- Basic Case Information -->
+                            <div class="col-12">
+                                <h5 class="text-primary border-bottom pb-2 mb-3">Basic Information</h5>
+                            </div>
+
                             <!-- CINO and Case Number -->
                             <div class="col-md-6">
                                 <label for="cino" class="form-label">CINO <span class="text-danger">*</span></label>
@@ -42,7 +47,31 @@
                                 <input type="text" class="form-control border-info shadow-sm" id="case_no" required placeholder="e.g., 202700010262022">
                             </div>
 
-                            <!-- Petitioner and Respondent -->
+                            <!-- Registration Details -->
+                            <div class="col-md-6">
+                                <label for="reg_no" class="form-label">Registration No</label>
+                                <input type="text" class="form-control border-info shadow-sm" id="reg_no" name="reg_no" placeholder="Enter registration number">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="reg_year" class="form-label">Registration Year</label>
+                                <input type="text" class="form-control border-info shadow-sm" id="reg_year" name="reg_year" placeholder="Enter registration year">
+                            </div>
+
+                            <!-- Filing Details -->
+                            <div class="col-md-6">
+                                <label for="fil_no" class="form-label">Filing No</label>
+                                <input type="text" class="form-control border-info shadow-sm" id="fil_no" name="fil_no" placeholder="Enter filing number">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="fil_year" class="form-label">Filing Year</label>
+                                <input type="text" class="form-control border-info shadow-sm" id="fil_year" name="fil_year" placeholder="Enter filing year">
+                            </div>
+
+                            <!-- Parties Information -->
+                            <div class="col-12">
+                                <h5 class="text-primary border-bottom pb-2 mb-3 mt-4">Parties Information</h5>
+                            </div>
+
                             <div class="col-md-6">
                                 <label for="petparty_name" class="form-label">Petitioner Name <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control border-info shadow-sm" id="petparty_name" required placeholder="Enter petitioner name">
@@ -66,14 +95,35 @@
                                 <input type="text" class="form-control border-info shadow-sm" id="type_name" placeholder="e.g., Civil, Criminal, Family">
                             </div>
 
-                            <!-- Court and Next Hearing Date -->
+                            <!-- Local Language Type -->
+                            <div class="col-12">
+                                <label for="ltype_name" class="form-label">Local Type Name</label>
+                                <input type="text" class="form-control border-info shadow-sm" id="ltype_name" name="ltype_name" placeholder="Enter local language type name">
+                            </div>
+
+                            <!-- Court and Location Information -->
+                            <div class="col-12">
+                                <h5 class="text-primary border-bottom pb-2 mb-3 mt-4">Court & Location</h5>
+                            </div>
+
                             <div class="col-md-6">
                                 <label for="court_no_desg_name" class="form-label">Court</label>
                                 <input type="text" class="form-control border-info shadow-sm" id="court_no_desg_name" placeholder="Enter court name">
                             </div>
                             <div class="col-md-6">
-                                <label for="date_next_list" class="form-label">Next Hearing Date</label>
-                                <input type="date" class="form-control border-info shadow-sm" id="date_next_list">
+                                <label for="establishment_code" class="form-label">Establishment Code</label>
+                                <input type="text" class="form-control border-info shadow-sm" id="establishment_code" name="establishment_code" placeholder="e.g., MHPU02">
+                            </div>
+
+                            <!-- Establishment Names -->
+                            <div class="col-12">
+                                <label for="establishment_name" class="form-label">Establishment Name</label>
+                                <input type="text" class="form-control border-info shadow-sm" id="establishment_name" placeholder="Enter establishment name">
+                            </div>
+
+                            <div class="col-12">
+                                <label for="lestablishment_name" class="form-label">Local Establishment Name</label>
+                                <input type="text" class="form-control border-info shadow-sm" id="lestablishment_name" name="lestablishment_name" placeholder="Enter local language establishment name">
                             </div>
 
                             <!-- State and District -->
@@ -82,14 +132,54 @@
                                 <input type="text" class="form-control border-info shadow-sm" id="state_name" placeholder="Enter state">
                             </div>
                             <div class="col-md-6">
+                                <label for="state_code" class="form-label">State Code</label>
+                                <input type="text" class="form-control border-info shadow-sm" id="state_code" name="state_code" placeholder="Enter state code">
+                            </div>
+
+                            <div class="col-md-6">
                                 <label for="district_name" class="form-label">District</label>
                                 <input type="text" class="form-control border-info shadow-sm" id="district_name" placeholder="Enter district">
                             </div>
+                            <div class="col-md-6">
+                                <label for="district_code" class="form-label">District Code</label>
+                                <input type="text" class="form-control border-info shadow-sm" id="district_code" name="district_code" placeholder="Enter district code">
+                            </div>
 
-                            <!-- Establishment -->
+                            <!-- Local Names -->
+                            <div class="col-md-6">
+                                <label for="lstate_name" class="form-label">Local State Name</label>
+                                <input type="text" class="form-control border-info shadow-sm" id="lstate_name" name="lstate_name" placeholder="Enter local language state name">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="ldistrict_name" class="form-label">Local District Name</label>
+                                <input type="text" class="form-control border-info shadow-sm" id="ldistrict_name" name="ldistrict_name" placeholder="Enter local language district name">
+                            </div>
+
+                            <!-- Dates and Status -->
                             <div class="col-12">
-                                <label for="establishment_name" class="form-label">Establishment</label>
-                                <input type="text" class="form-control border-info shadow-sm" id="establishment_name" placeholder="Enter establishment name">
+                                <h5 class="text-primary border-bottom pb-2 mb-3 mt-4">Dates & Status</h5>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="date_next_list" class="form-label">Next Hearing Date</label>
+                                <input type="date" class="form-control border-info shadow-sm" id="date_next_list">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="date_last_list" class="form-label">Last Hearing Date</label>
+                                <input type="date" class="form-control border-info shadow-sm" id="date_last_list" name="date_last_list">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="date_of_decision" class="form-label">Date of Decision</label>
+                                <input type="date" class="form-control border-info shadow-sm" id="date_of_decision" name="date_of_decision">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="updated" class="form-label">Case Status</label>
+                                <select class="form-select border-info shadow-sm" id="updated" name="updated">
+                                    <option value="">Select status</option>
+                                    <option value="true">Active/Updated</option>
+                                    <option value="false">Inactive</option>
+                                </select>
                             </div>
 
                             <!-- Purpose/Stage -->
@@ -188,15 +278,29 @@
         const formData = {
             cino: document.getElementById('cino').value,
             case_no: document.getElementById('case_no').value,
+            reg_no: document.getElementById('reg_no').value,
+            reg_year: document.getElementById('reg_year').value,
+            fil_no: document.getElementById('fil_no').value,
+            fil_year: document.getElementById('fil_year').value,
             petparty_name: document.getElementById('petparty_name').value,
             resparty_name: document.getElementById('resparty_name').value,
             user_side: document.getElementById('user_side').value,
             type_name: document.getElementById('type_name').value,
+            ltype_name: document.getElementById('ltype_name').value,
             court_no_desg_name: document.getElementById('court_no_desg_name').value,
-            date_next_list: document.getElementById('date_next_list').value,
-            state_name: document.getElementById('state_name').value,
-            district_name: document.getElementById('district_name').value,
+            establishment_code: document.getElementById('establishment_code').value,
             establishment_name: document.getElementById('establishment_name').value,
+            lestablishment_name: document.getElementById('lestablishment_name').value,
+            state_name: document.getElementById('state_name').value,
+            state_code: document.getElementById('state_code').value,
+            district_name: document.getElementById('district_name').value,
+            district_code: document.getElementById('district_code').value,
+            lstate_name: document.getElementById('lstate_name').value,
+            ldistrict_name: document.getElementById('ldistrict_name').value,
+            date_next_list: document.getElementById('date_next_list').value,
+            date_last_list: document.getElementById('date_last_list').value,
+            date_of_decision: document.getElementById('date_of_decision').value,
+            updated: document.getElementById('updated').value,
             purpose_name: document.getElementById('purpose_name').value,
             user_notes: document.getElementById('user_notes').value
         };
